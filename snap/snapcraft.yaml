@@ -6,16 +6,16 @@ description:
     an Openvswitch switch such as flows and ports into a filesystem structure so that
     conventional tools like find, ls and grep can be used to perform queries and provide
     a more intuitive visualisation of the configuration of an ovs switch.
-confinement: classic 
+confinement: devmode 
 grade: devel 
 
 apps:
   ovs-stat:
     command: ovs-stat.sh
-    plugs: [home, removable-media]
+    plugs: [home, removable-media, network-control, openvswitch]
 parts:
   ovs-stat:
     source: .
     plugin: dump
-    stage-packages: [coreutils, bsdmainutils, tree]
+    stage-packages: [coreutils, bsdmainutils, tree, openvswitch-switch]
 
