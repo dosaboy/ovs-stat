@@ -27,12 +27,12 @@ cat << EOF
     --overwrite|--force
     --summary
     --results-path|-p (default=TMP)
-    --show-dataset
+    --tree
     --help|-h
 EOF
 echo -e "\nINFO:"
-echo "    <datapath> default to ."
-echo "    <TMP> is temporary directory"
+echo "    <datapath> defaults to /"
+echo "    <TMP> is a temporary directory"
 }
 
 while (($#)); do
@@ -50,7 +50,7 @@ while (($#)); do
         --delete)
             do_delete_results=true
             ;;
-        --show-dataset)
+        --tree)
             do_show_dataset=true
             ;;
         --compress)

@@ -6,8 +6,8 @@ description:
     an Openvswitch switch such as flows and ports into a filesystem structure so that
     conventional tools like find, ls and grep can be used to perform queries and provide
     a more intuitive visualisation of the configuration of an ovs switch.
-confinement: devmode 
-grade: devel 
+confinement: strict 
+grade: stable
 
 apps:
   ovs-stat:
