@@ -72,46 +72,7 @@ while (($#)); do
     shift
 done
 
-tmp_datastore=
-cleanup () {
-    wait
-    if [ -d "$tmp_datastore" ] && $do_delete_results; then
-        echo -e "\nDeleting datastore at $tmp_datastore"
-        rm -rf $tmp_datastore
-    fi
-    echo -e "\nDone."
-}
-trap cleanup EXIT INT
-
-if [ -z "$results_path" ]; then
-    tmp_datastore=`mktemp -d`
-    results_path=$tmp_datastore
-fi
-
-# Add missing slash
-[ "${root:(-1)}" = "/" ] || root="${root}/"
-if [ -n "${results_path}" ]; then
-    [ "${results_path:(-1)}" = "/" ] || results_path="${results_path}/"
-fi
-
-# get hostname
-hostname=`get_hostname`
-
-results_path=$results_path$hostname
-echo "Data source: $root"
-echo "Data destination: $results_path"
-
-if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
-    if ! $force; then
-    echo -e "\nWARNING: $results_path already exists! - skipping create"
-        do_create_dataset=false
-    else
-        rm -rf $results_path
-    fi
-fi
-
-mkdir -p $results_path/ovs
-mkdir -p $results_path/linux
+# NO CODE HERE, MUST GO AFTER FUNC DEFS
 
 load_namespaces ()
 {
@@ -468,39 +429,32 @@ check_error ()
 
 create_dataset ()
 {
-echo -en "\nCreating dataset..."
-# ordering is important!
-load_namespaces 2>$results_path/error.$$; check_error "namespaces"
-load_ovs_bridges 2>$results_path/error.$$; check_error "ovs bridges"
-load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
-load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
+    echo -en "\nCreating dataset..."
 
-load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans" &
-load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables" &
-load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans" &
-load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs" &
-load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info" &
+    # ordering is important!
+    load_namespaces 2>$results_path/error.$$; check_error "namespaces"
+    load_ovs_bridges 2>$results_path/error.$$; check_error "ovs bridges"
+    load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
+    load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
 
-# do this first so that we can use reg5 to identify port flows if it exists
-load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs" &
-wait
-# these depend on everything else existing so wait till the rest is finished
-load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows" &
-load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids" &
-wait
-echo "done."
+    load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans" &
+    load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables" &
+    load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans" &
+    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs" &
+    load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info" &
+
+    # do this first so that we can use reg5 to identify port flows if it exists
+    load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs" &
+    wait
+    # these depend on everything else existing so wait till the rest is finished
+    load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows" &
+    load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids" &
+    wait
+    echo "done."
 }
-$do_create_dataset && create_dataset
 
-# check for broken symlinks
-if ((`find $results_path -xtype l| wc -l`)); then
-    echo -e "\n================================================================================"
-    echo -e "WARNING: dataset contains broken links.\nExecute 'find $results_path -xtype l' to display them."
-    echo -e "================================================================================\n"
-fi
-
-## MAIN ##
-show_summary () {
+show_summary ()
+{
     num=`ls $results_path/ovs/ports 2>/dev/null| wc -l`
     echo -e "\nOVS ports:\n  $num"
 
@@ -531,14 +485,70 @@ show_summary () {
         echo "$bridge: $num"
     done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
 }
+
+## MAIN ##
+
+tmp_datastore=
+cleanup () {
+    wait
+    if [ -d "$tmp_datastore" ] && $do_delete_results; then
+        echo -e "\nDeleting datastore at $tmp_datastore"
+        rm -rf $tmp_datastore
+    fi
+    echo -e "\nDone."
+}
+trap cleanup EXIT INT
+
+if [ -z "$results_path" ]; then
+    tmp_datastore=`mktemp -d`
+    results_path=$tmp_datastore
+fi
+
+# Add missing slash
+[ "${root:(-1)}" = "/" ] || root="${root}/"
+if [ -n "${results_path}" ]; then
+    [ "${results_path:(-1)}" = "/" ] || results_path="${results_path}/"
+fi
+
+# get hostname
+hostname=`get_hostname`
+
+results_path=$results_path$hostname
+echo "Data source: $root"
+echo "Data destination: $results_path"
+
+if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
+    if ! $force; then
+    echo -e "\nWARNING: $results_path already exists! - skipping create"
+        do_create_dataset=false
+    else
+        rm -rf $results_path
+    fi
+fi
+
+# top-level structure
+mkdir -p $results_path/ovs
+mkdir -p $results_path/linux
+# next-level
+mkdir -p $results_path/ovs/{bridges,ports,vlans}
+mkdir -p $results_path/linux/{namespaces,ports}
+# the rest is created dynamically
+
+$do_create_dataset && create_dataset
+
+# check for broken symlinks
+if ((`find $results_path -xtype l| wc -l`)); then
+    echo -e "\n================================================================================"
+    echo -e "WARNING: dataset contains broken links.\nExecute 'find $results_path -xtype l' to display them."
+    echo -e "================================================================================\n"
+fi
+
 show_summary
 
-dataset ()
-{
+if $do_show_dataset; then
     echo -e "\nDataset:"
     tree $results_path
-}
-$do_show_dataset && dataset
+fi
 
 if $compress_dataset; then
     target=ovs-stat-${hostname}
