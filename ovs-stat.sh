@@ -108,25 +108,28 @@ load_ovs_bridges_ports()
         mkdir -p $results_path/ovs/bridges/$bridge/ports
         ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
         for port in "${ports[@]}"; do
-            name=${port##*:}
-            id=${port%%:*}
+            {
+                name=${port##*:}
+                id=${port%%:*}
 
-            mkdir -p $results_path/ovs/ports/$name
-            ln -s ../../bridges/$bridge \
-                $results_path/ovs/ports/$name/bridge
-            ln -s ../../../ports/$name \
-                $results_path/ovs/bridges/$bridge/ports/$id
-            echo $id > $results_path/ovs/ports/$name/id
+                mkdir -p $results_path/ovs/ports/$name
+                ln -s ../../bridges/$bridge \
+                    $results_path/ovs/ports/$name/bridge
+                ln -s ../../../ports/$name \
+                    $results_path/ovs/bridges/$bridge/ports/$id
+                echo $id > $results_path/ovs/ports/$name/id
 
-            # is it actually a linux port - create fwd and rev ref
-            if `get_ip_link_show| grep -q $name`; then
-                mkdir -p $results_path/linux/ports/$name
-                ln -s ../../../linux/ports/$name \
-                    $results_path/ovs/ports/$name/hostnet
-                ln -s ../../../ovs/ports/$name \
-                    $results_path/linux/ports/$name/ovs
-            fi
+                # is it actually a linux port - create fwd and rev ref
+                if `get_ip_link_show| grep -q $name`; then
+                    mkdir -p $results_path/linux/ports/$name
+                    ln -s ../../../linux/ports/$name \
+                        $results_path/ovs/ports/$name/hostnet
+                    ln -s ../../../ovs/ports/$name \
+                        $results_path/linux/ports/$name/ovs
+                fi
+            } &
         done
+        wait
     done
 }
 
@@ -195,6 +198,7 @@ load_bridges_port_ns_attach_info ()
 
     for bridge in `ls $results_path/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
+            {
             port_suffix=${port##tap}
 
             # first try linux
@@ -254,7 +258,9 @@ load_bridges_port_ns_attach_info ()
                     fi
                 fi
             fi
+            } &
         done
+        wait
     done
 }
 
@@ -284,6 +290,7 @@ load_bridges_port_flows ()
 
     for bridge in `ls $results_path/ovs/bridges`; do
         for id in `ls $results_path/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
+            {
             flows_root=$results_path/ovs/bridges/$bridge/ports/$id/flows
             port_mac=$results_path/ovs/bridges/$bridge/ports/$id/hwaddr
             hexid=`printf '%x' $id`
@@ -308,7 +315,7 @@ load_bridges_port_flows ()
             [ -s "$proto" ] || rm -f $proto
 
             proto=$proto_flows_root/dns
-	    egrep "tp_dst=53[, ]+" $flows_root/all >> $proto
+            egrep "tp_dst=53[, ]+" $flows_root/all >> $proto
             [ -s "$proto" ] || rm -f $proto
 
             proto=$proto_flows_root/arp
@@ -330,8 +337,9 @@ load_bridges_port_flows ()
             proto=$proto_flows_root/udp
             egrep "udp" $flows_root/all| grep -v udp6 >> $proto
             [ -s "$proto" ] || rm -f $proto
-
+            } &
         done
+        wait
     done    
 }
 
