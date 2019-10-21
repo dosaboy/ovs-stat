@@ -12,6 +12,7 @@ force=false
 do_show_dataset=false
 do_create_dataset=true
 do_delete_results=false
+do_show_summary=true
 compress_dataset=false
 archive_tag=
 
@@ -25,6 +26,7 @@ cat << EOF
     --archive-tag
     --compress
     --overwrite|--force
+    --quiet|-q
     --summary
     --results-path|-p (default=TMP)
     --tree
@@ -55,6 +57,9 @@ while (($#)); do
             ;;
         --compress)
             compress_dataset=true
+            ;;
+        --quiet|-q)
+            do_show_summary=false
             ;;
         --archive-tag)
             archive_tag="$2"
@@ -449,7 +454,7 @@ check_error ()
 
 create_dataset ()
 {
-    echo -en "\nCreating dataset..."
+    $do_show_summary && echo -en "\nCreating dataset..."
 
     # ordering is important!
     load_namespaces 2>$results_path/error.$$; check_error "namespaces"
@@ -470,7 +475,8 @@ create_dataset ()
     load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows" &
     load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids" &
     wait
-    echo "done."
+
+    $do_show_summary && echo "done."
 }
 
 show_summary ()
@@ -515,7 +521,7 @@ cleanup () {
         echo -e "\nDeleting datastore at $tmp_datastore"
         rm -rf $tmp_datastore
     fi
-    echo -e "\nDone."
+    $do_show_summary && echo -e "\nDone."
 }
 trap cleanup EXIT INT
 
@@ -534,8 +540,11 @@ fi
 hostname=`get_hostname`
 
 results_path=$results_path$hostname
-echo "Data source: $root"
-echo "Data destination: $results_path"
+
+if $do_show_summary; then
+    echo "Data source: $root"
+    echo "Data destination: $results_path"
+fi
 
 if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
     if ! $force; then
@@ -563,7 +572,7 @@ if ((`find $results_path -xtype l| wc -l`)); then
     echo -e "================================================================================\n"
 fi
 
-show_summary
+$do_show_summary && show_summary
 
 if $do_show_dataset; then
     echo -e "\nDataset:"
