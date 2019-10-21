@@ -291,7 +291,7 @@ load_bridges_flow_tables ()
         readarray -t tables<<<"`sed -r 's/.+table=([[:digit:]]+).+/\1/g;t;d' $bridge_flows| sort -un`"
         for t in "${tables[@]}"; do
             mkdir -p $tables_root/$t
-            egrep 'table=[[:digit:]]+,' $bridge_flows > ${tables_root}/${t}/flows
+            egrep "table=$t," $bridge_flows > ${tables_root}/${t}/flows
         done
     done
 }
