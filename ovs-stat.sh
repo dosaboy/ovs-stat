@@ -267,7 +267,19 @@ load_bridges_port_ns_attach_info ()
 load_bridges_flows ()
 {
     for bridge in `ls $results_path/ovs/bridges`; do
-        get_ovs_ofctl_dump_flows $bridge > $results_path/ovs/bridges/$bridge/flows
+        flows_path=$results_path/ovs/bridges/$bridge/flows
+        get_ovs_ofctl_dump_flows $bridge > $flows_path
+        readarray -t cookies <<<"`sed -r 's/.*cookie=0x([[:alnum:]]+),.+/\1/g;t;d' $flows_path| sort -u`"
+        cookies_path=$results_path/ovs/bridges/$bridge/flowinfo/cookies
+        mkdir -p $cookies_path
+        for c in ${cookies[@]}; do
+            touch $cookies_path/$c
+        done
+        sed -r -e 's/cookie=[[:alnum:]]+,\s+//g' \
+                  -e 's/duration=[[:digit:]\.]+s,\s+//g' \
+                  -e 's/n_[[:alnum:]]+=[[:digit:]]+,\s+//g' \
+                  -e 's/[[:alnum:]]+_age=[[:digit:]]+,\s+//g' \
+            $flows_path > ${flows_path}.stripped
     done    
 }
 
