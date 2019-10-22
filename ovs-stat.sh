@@ -183,11 +183,13 @@ load_bridges_flow_vlans ()
 
 load_bridges_port_macs ()
 {
-    # loads all mac addresses for ports on all bridges
+    # loads mac addresses for ports on all bridges where mac was not found by
+    # other means.
     # :requires: load_ovs_bridges_ports
 
     for bridge in `ls $results_path/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
+            [ -e "$results_path/ovs/ports/$port/hwaddr" ] && continue
             mac=`get_ovs_ofctl_show $bridge| \
                  sed -r "s/^\s+.+\($port\):\s+addr:(.+)/\1/g;t;d"`
             echo $mac > $results_path/ovs/ports/$port/hwaddr
@@ -225,14 +227,9 @@ load_bridges_port_ns_attach_info ()
                 ns_port="`get_ns_ip_addr_show $ns_name| 
                        sed -r \"s,[[:digit:]]+:\s+(.*${port_suffix})(@[[:alnum:]]+)?:\s+.+,\1,g;t;d\"`"
 
-                if [ "$ns_port" = "$port" ]; then
-                    is_veth_pair=false
-                else
-                    is_veth_pair=true
-                fi
-
                 if [ -n "$ns_port" ]; then
-                    if $is_veth_pair; then
+                    if [ "$ns_port" != "$port" ]; then
+                        # it is a veth peer
                         if [ -e "$results_path/linux/ports/$port" ]; then
                             mkdir -p $results_path/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../../ports/$port \
@@ -254,12 +251,18 @@ load_bridges_port_ns_attach_info ()
                                 $results_path/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../linux/namespaces/$ns_name \
                                 $results_path/linux/ports/$ns_port/namespace
+                            port_path="$results_path/linux/ports/$ns_port"
                         else
                             ln -s ../../../../ovs/ports/$port \
                                 $results_path/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../linux/namespaces/$ns_name \
                                 $results_path/ovs/ports/$ns_port/namespace
+                            port_path="$results_path/ovs/ports/$ns_port"
                         fi
+                        mac="`get_ns_ip_addr_show $ns_name| \
+                              grep -A 1 $port| \
+                              sed -r 's,.*link/ether\s+([[:alnum:]\:]+).+,\1,g;t;d'`"
+                        echo $mac > $port_path/hwaddr
                     fi
                 fi
             fi
@@ -465,8 +468,9 @@ create_dataset ()
     load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans" &
     load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables" &
     load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans" &
-    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs" &
     load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info" &
+    wait
+    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs" &
 
     # do this first so that we can use reg5 to identify port flows if it exists
     load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs" &
