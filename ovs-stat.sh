@@ -15,6 +15,7 @@ do_delete_results=false
 do_show_summary=true
 compress_dataset=false
 archive_tag=
+tree_depth=
 
 . `dirname $(readlink -f $0)`/common.sh
 
@@ -30,6 +31,7 @@ cat << EOF
     --summary
     --results-path|-p (default=TMP)
     --tree
+    --depth
     --help|-h
 EOF
 echo -e "\nINFO:"
@@ -54,6 +56,10 @@ while (($#)); do
             ;;
         --tree)
             do_show_dataset=true
+            ;;
+        --depth)
+            tree_depth="$2"
+            shift
             ;;
         --compress)
             compress_dataset=true
@@ -580,7 +586,11 @@ $do_show_summary && show_summary
 
 if $do_show_dataset; then
     echo -e "\nDataset:"
-    tree $results_path
+    args=""
+    if [ -n "$tree_depth" ]; then
+        args+="-L $tree_depth"
+    fi
+    tree $args $results_path
 fi
 
 if $compress_dataset; then
