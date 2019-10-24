@@ -7,13 +7,15 @@ ylw () { echo "${CSI}33m$1${RES}"; }
 bold () { echo -e "\e[1m$1\e[0m"; }
 uline () { echo -e "\e[4m$1\e[0m"; }
 
+cache_dir=`mktemp -d --suffix -$$-cache-i-am-safe-to-delete`
+
 get_ps ()
 {
     sos=${root}ps
     if [ -r "$sos" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ps
+        cache=$cache_dir/cache.$$.ps
         if ! [ -r "$cache" ]; then
             ps auxx > $cache
         fi
@@ -37,7 +39,7 @@ get_ip_addr_show ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ip_addr
+        cache=$cache_dir/cache.$$.ip_addr
         if ! [ -r "$cache" ]; then
             ip -d address > $cache
         fi
@@ -51,7 +53,7 @@ get_ip_link_show ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ip_addr
+        cache=$cache_dir/cache.$$.ip_addr
         if ! [ -r "$cache" ]; then
             ip -s -d link > $cache
         fi
@@ -65,7 +67,7 @@ get_ip_netns ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ipnetns
+        cache=$cache_dir/cache.$$.ipnetns
         if ! [ -r "$cache" ]; then
             ip netns > $cache
         fi
@@ -80,7 +82,7 @@ get_ns_ip_addr_show ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.${ns}_ipnetnsipas
+        cache=$cache_dir/cache.$$.${ns}_ipnetnsipas
         if ! [ -r "$cache" ]; then
             ip netns exec $ns ip addr show > $cache
         fi
@@ -95,7 +97,7 @@ get_ns_iptables ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.${ns}_ipnetnsipts
+        cache=$cache_dir/cache.$$.${ns}_ipnetnsipts
         if ! [ -r "$cache" ]; then
             ip netns exec $ns iptables-save > $cache
         fi
@@ -110,7 +112,7 @@ get_ns_ss ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.${ns}_ipnetnsss
+        cache=$cache_dir/cache.$$.${ns}_ipnetnsss
         if ! [ -r "$cache" ]; then
             ip netns exec ${ns} ss -peaonmi > $cache
         fi
@@ -125,7 +127,7 @@ get_ns_netstat ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.${ns}_ipnetnsnetstat
+        cache=$cache_dir/cache.$$.${ns}_ipnetnsnetstat
         if ! [ -r "$cache" ]; then
             ip netns exec ${ns} netstat -W -neopa > $cache
         fi
@@ -140,7 +142,7 @@ get_ovs_ofctl_dump_flows ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ofctl_dump_flows_${bridge}
+        cache=$cache_dir/cache.$$.ofctl_dump_flows_${bridge}
         if ! [ -r "$cache" ]; then
             ovs-ofctl dump-flows $bridge > $cache
         fi
@@ -155,7 +157,7 @@ get_ovs_ofctl_show ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ofctl_show_${bridge}
+        cache=$cache_dir/cache.$$.ofctl_show_${bridge}
         if ! [ -r "$cache" ]; then
             ovs-ofctl show $bridge > $cache
         fi
@@ -169,7 +171,7 @@ get_ovs_vsctl_show ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.vsctl_show
+        cache=$cache_dir/cache.$$.vsctl_show
         if ! [ -r "$cache" ]; then
             ovs-vsctl show > $cache
         fi
@@ -184,7 +186,7 @@ get_ovs_appctl_fdbshow ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ovs-appctl_fdb.show_${bridge}
+        cache=$cache_dir/cache.$$.ovs-appctl_fdb.show_${bridge}
         if ! [ -r "$cache" ]; then
             ovs-appctl fdb/show ${bridge} > $cache
         fi
@@ -198,7 +200,7 @@ get_ovsdb_client_list_dump ()
     if [ -r "${root}sos_commands" ]; then
         cat $sos
     else
-        cache=/tmp/cache.$$.ovsdb-client_-f_list_dump
+        cache=$cache_dir/cache.$$.ovsdb-client_-f_list_dump
         if ! [ -r "$cache" ]; then
             ovsdb-client -f list dump > $cache
         fi
@@ -210,7 +212,7 @@ get_ns_ip_addr_show_all ()
 {
     #NOTE: this is a bit of a hack to make sos version look the same as real
     sos=${root}sos_commands/networking/ip_netns_exec_*_ip_address_show
-    cache=/tmp/cache.$$.all_ipnetnsipas
+    cache=$cache_dir/cache.$$.all_ipnetnsipas
     if [ -r "${root}sos_commands" ]; then
         if [ -r "$cache" ]; then
             cat $cache
