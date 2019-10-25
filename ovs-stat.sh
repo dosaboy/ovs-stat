@@ -388,7 +388,7 @@ load_bridges_port_flows ()
                     mkdir -p $target_path
                     local_mac_path="`find $results_path -name hwaddr| xargs -l grep -l $local_mac`"
                     if [ -n "$local_mac_path" ]; then
-                        rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../..,g"`"
+                        rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../../..,g"`"
                         ln -s $rel_path $target_path/$target_mac
                     else
                         echo "$local_mac" > $target_path/$target_mac
