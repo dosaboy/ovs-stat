@@ -363,6 +363,33 @@ load_bridges_port_flows ()
             proto=$proto_flows_root/udp
             egrep "udp" $flows_root/all| grep -v udp6 >> $proto
             [ -s "$proto" ] || rm -f $proto
+
+            # this is what neutron uses to modify src mac for dvr
+            flows_root=$results_path/ovs/bridges/$bridge
+            mod_dl_src_root=$flows_root/mod_dl_src
+            if `grep -q "mod_dl_src" $flows_root/flows`; then
+                mkdir -p $mod_dl_src_root
+                readarray -t lines<<<"`grep mod_dl_src $flows_root/flows`"
+                for line in "${lines[@]}"; do
+                    mod_dl_src_mac=`echo "$line"| sed -r 's/.+mod_dl_src:([[:alnum:]\:]+).+/\1/g;t;d'`
+
+                    orig_mac=`echo "$line"| sed -r 's/.+,dl_dst=([[:alnum:]\:]+).+/\1/g;t;d'`
+                    if [ -n "$orig_mac" ]; then
+                        # ingress i.e. if dst==remote replace src dvr_mac with local
+                        local_mac=$mod_dl_src_mac
+                        target_path=$mod_dl_src_root/ingress
+                        target_mac=$orig_mac
+                    else
+                        # egress i.e. if src==local set src=dvr_mac
+                        local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
+                        target_path=$mod_dl_src_root/egress
+                        target_mac=$mod_dl_src_mac
+                    fi
+                    mkdir -p $target_path
+                    local_mac_path="`find $results_path -name hwaddr| xargs -l grep -l $local_mac`"
+                    ln -s $local_mac_path $target_path/$target_mac
+                done
+            fi
             } &
         done
         wait
