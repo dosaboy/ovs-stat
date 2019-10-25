@@ -563,6 +563,7 @@ cleanup () {
         echo -e "\nDeleting datastore at $tmp_datastore"
         rm -rf $tmp_datastore
     fi
+    [ -e "$COMMAND_CACHE_PATH" ] && rm -rf $COMMAND_CACHE_PATH
     $do_show_summary && echo -e "\nDone."
 }
 trap cleanup EXIT INT
