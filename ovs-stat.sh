@@ -366,7 +366,7 @@ load_bridges_port_flows ()
 
             # this is what neutron uses to modify src mac for dvr
             flows_root=$results_path/ovs/bridges/$bridge
-            mod_dl_src_root=$flows_root/mod_dl_src
+            mod_dl_src_root=$flows_root/flowinfo/mod_dl_src
             if `grep -q "mod_dl_src" $flows_root/flows`; then
                 mkdir -p $mod_dl_src_root
                 readarray -t lines<<<"`grep mod_dl_src $flows_root/flows`"
@@ -387,7 +387,12 @@ load_bridges_port_flows ()
                     fi
                     mkdir -p $target_path
                     local_mac_path="`find $results_path -name hwaddr| xargs -l grep -l $local_mac`"
-                    ln -s $local_mac_path $target_path/$target_mac
+                    if [ -n "$local_mac_path" ]; then
+                        rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../..,g"`"
+                        ln -s $rel_path $target_path/$target_mac
+                    else
+                        echo "$local_mac" > $target_path/$target_mac
+                    fi
                 done
             fi
             } &
