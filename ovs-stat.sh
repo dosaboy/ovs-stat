@@ -598,6 +598,9 @@ if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
     fi
 fi
 
+# If we are going to be creating data then pre-load the caches
+$do_create_dataset && cache_preload
+
 # top-level structure
 mkdir -p $results_path/ovs
 mkdir -p $results_path/linux
