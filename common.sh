@@ -19,9 +19,10 @@ get_ps ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ps
         if ! [ -r "$cache" ]; then
-            ps auxx > $cache
+            ps auxx| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -45,9 +46,10 @@ get_ip_addr_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ip_addr
         if ! [ -r "$cache" ]; then
-            ip -d address > $cache
+            ip -d address| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi    
 }
@@ -61,9 +63,10 @@ get_ip_link_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ip_addr
         if ! [ -r "$cache" ]; then
-            ip -s -d link > $cache
+            ip -s -d link| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi    
 }
@@ -77,9 +80,10 @@ get_ip_netns ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ipnetns
         if ! [ -r "$cache" ]; then
-            ip netns > $cache
+            ip netns| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -94,9 +98,10 @@ get_ns_ip_addr_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.${ns}_ipnetnsipas
         if ! [ -r "$cache" ]; then
-            ip netns exec $ns ip addr show > $cache
+            ip netns exec $ns ip addr show| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi    
 }
@@ -111,9 +116,10 @@ get_ns_iptables ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.${ns}_ipnetnsipts
         if ! [ -r "$cache" ]; then
-            ip netns exec $ns iptables-save > $cache
+            ip netns exec $ns iptables-save| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -128,9 +134,10 @@ get_ns_ss ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.${ns}_ipnetnsss
         if ! [ -r "$cache" ]; then
-            ip netns exec ${ns} ss -peaonmi > $cache
+            ip netns exec ${ns} ss -peaonmi| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -145,9 +152,10 @@ get_ns_netstat ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.${ns}_ipnetnsnetstat
         if ! [ -r "$cache" ]; then
-            ip netns exec ${ns} netstat -W -neopa > $cache
+            ip netns exec ${ns} netstat -W -neopa| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -162,9 +170,10 @@ get_ovs_ofctl_dump_flows ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ofctl_dump_flows_${bridge}
         if ! [ -r "$cache" ]; then
-            ovs-ofctl dump-flows $bridge > $cache
+            ovs-ofctl dump-flows $bridge| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -179,9 +188,10 @@ get_ovs_ofctl_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ofctl_show_${bridge}
         if ! [ -r "$cache" ]; then
-            ovs-ofctl show $bridge > $cache
+            ovs-ofctl show $bridge| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -195,9 +205,10 @@ get_ovs_vsctl_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.vsctl_show
         if ! [ -r "$cache" ]; then
-            ovs-vsctl show > $cache
+            ovs-vsctl show| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -212,9 +223,10 @@ get_ovs_appctl_fdbshow ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ovs-appctl_fdb.show_${bridge}
         if ! [ -r "$cache" ]; then
-            ovs-appctl fdb/show ${bridge} > $cache
+            ovs-appctl fdb/show $bridge| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -228,9 +240,10 @@ get_ovsdb_client_list_dump ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.$$.ovsdb-client_-f_list_dump
         if ! [ -r "$cache" ]; then
-            ovsdb-client -f list dump > $cache
+            ovsdb-client -f list dump| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
         ) 200>$LOCKPATH
     fi
 }
@@ -256,9 +269,10 @@ get_ns_ip_addr_show_all ()
         fi
     else
         if ! [ -r "$cache" ]; then
-            ip -all netns exec ip addr show > $cache
+            ip -all netns exec ip addr show| tee $cache
+        else
+            cat $cache
         fi
-        cat $cache
     fi
     ) 200>$LOCKPATH
 }
