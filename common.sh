@@ -22,6 +22,15 @@ cache_preload ()
     get_ns_ip_addr_show_all &>/dev/null
 }
 
+get_bridge_of_version ()
+{
+    bridge="$1"
+    ver="`ovs-vsctl get bridge $bridge protocols| jq -r '.| first'`"
+    [ -z "$ver" ] || [ "$ver" = "null" ] && return 0
+    echo -n $ver
+    return 0
+}
+
 get_ps ()
 {
     sos=${root}ps
@@ -154,7 +163,12 @@ get_ovs_ofctl_dump_flows ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.ofctl_dump_flows_${bridge}
         if ! [ -r "$cache" ]; then
-            ovs-ofctl dump-flows $bridge| tee $cache
+            of_ver="`get_bridge_of_version $bridge`"
+            if [ -n "$of_ver" ]; then
+                ovs-ofctl -O $of_ver dump-flows $bridge| tee $cache
+            else
+                ovs-ofctl dump-flows $bridge| tee $cache
+            fi
         else
             cat $cache
         fi
@@ -172,7 +186,12 @@ get_ovs_ofctl_show ()
         ( flock -e 200
         cache=$COMMAND_CACHE_PATH/cache.ofctl_show_${bridge}
         if ! [ -r "$cache" ]; then
-            ovs-ofctl show $bridge| tee $cache
+            of_ver="`get_bridge_of_version $bridge`"
+            if [ -n "$of_ver" ]; then
+                ovs-ofctl -O $of_ver show $bridge| tee $cache
+            else
+                ovs-ofctl show $bridge| tee $cache
+            fi
         else
             cat $cache
         fi
