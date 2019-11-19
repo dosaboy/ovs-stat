@@ -229,9 +229,15 @@ load_bridges_port_ns_attach_info ()
 
             if [ -n "$ns_name" ]; then
                 mkdir -p $results_path/linux/namespaces/$ns_name/ports
+                if_id=`get_ip_link_show| grep $port| sed -r "s/.+${port}@if([[:digit:]]+):\s+.+/\1/g"`
 
-                ns_port="`get_ns_ip_addr_show $ns_name| 
-                       sed -r \"s,[[:digit:]]+:\s+(.*${port_suffix})(@[[:alnum:]]+)?:\s+.+,\1,g;t;d\"`"
+                if [ -n "$if_id" ]; then
+                    ns_port="`get_ns_ip_addr_show $ns_name| 
+                           sed -r \"s,${if_id}:\s+(.+)@[[:alnum:]]+:\s+.+,\1,g;t;d\"`"
+                else
+                    ns_port="`get_ns_ip_addr_show $ns_name| 
+                           sed -r \"s,[[:digit:]]+:\s+(.*${port_suffix})(@[[:alnum:]]+)?:\s+.+,\1,g;t;d\"`"
+                fi
 
                 if [ -n "$ns_port" ]; then
                     if [ "$ns_port" != "$port" ]; then
