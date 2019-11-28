@@ -36,16 +36,17 @@ get_ps ()
     sos=${root}ps
     if [ -r "$sos" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ps
-        if ! [ -r "$cache" ]; then
-            ps auxx| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
+        return
     fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ps
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ps auxx| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_hostname ()
@@ -53,9 +54,10 @@ get_hostname ()
     sos=${root}hostname
     if [ -r "$sos" ]; then
         cat $sos
-    else
-        hostname
+        return
     fi
+
+    hostname
 }
 
 get_ip_addr_show ()
@@ -63,16 +65,17 @@ get_ip_addr_show ()
     sos=${root}sos_commands/networking/ip_-d_address
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ip_addr
-        if ! [ -r "$cache" ]; then
-            ip -d address| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
-    fi    
+        return
+    fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ip_addr
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ip -d address| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ip_link_show ()
@@ -80,16 +83,17 @@ get_ip_link_show ()
     sos=${root}sos_commands/networking/ip_-s_-d_link
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ip_addr
-        if ! [ -r "$cache" ]; then
-            ip -s -d link| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
-    fi    
+        return
+    fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ip_-s_-d_link
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ip -s -d link| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ip_netns ()
@@ -97,27 +101,29 @@ get_ip_netns ()
     sos=${root}sos_commands/networking/ip_netns
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ipnetns
-        if ! [ -r "$cache" ]; then
-            ip netns| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
+        return
     fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ipnetns
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ip netns| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ns_ip_addr_show ()
 {
-    ns=$1
+    ns="$1"
     sos=${root}sos_commands/networking/ip_netns_exec_${ns}_ip_address_show
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ip netns exec $ns ip addr show
-    fi    
+        return
+    fi
+
+    ip netns exec $ns ip addr show
 }
 
 get_ns_iptables ()
@@ -126,77 +132,82 @@ get_ns_iptables ()
     sos=${root}sos_commands/networking/ip_netns_exec_${ns}_iptables-save
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ip netns exec $ns iptables-save
+        return
     fi
+
+    ip netns exec $ns iptables-save
 }
 
 get_ns_ss ()
 {
-    ns=$1
+    ns="$1"
     sos=${root}sos_commands/networking/ip_netns_exec_${ns}_ss_-peaonmi
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ip netns exec ${ns} ss -peaonmi
+        return
     fi
+
+    ip netns exec ${ns} ss -peaonmi
 }
 
 get_ns_netstat ()
 {
-    ns=$1
+    ns="$1"
     sos=${root}sos_commands/networking/ip_netns_exec_${ns}_netstat_-W_-neopa
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ip netns exec ${ns} netstat -W -neopa
+        return
     fi
+
+    ip netns exec ${ns} netstat -W -neopa
 }
 
 get_ovs_ofctl_dump_flows ()
 {
-    bridge=$1
+    bridge="$1"
     sos=${root}sos_commands/openvswitch/ovs-ofctl_dump-flows_${bridge}
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ofctl_dump_flows_${bridge}
-        if ! [ -r "$cache" ]; then
+        return
+    fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ofctl_dump_flows_${bridge}
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
             of_ver="`get_bridge_of_version $bridge`"
             if [ -n "$of_ver" ]; then
                 ovs-ofctl -O $of_ver dump-flows $bridge| tee $cache
             else
                 ovs-ofctl dump-flows $bridge| tee $cache
             fi
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
-    fi
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ovs_ofctl_show ()
 {
-    bridge=$1
+    bridge="$1"
     sos=${root}sos_commands/openvswitch/ovs-ofctl_show_${bridge}
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ofctl_show_${bridge}
-        if ! [ -r "$cache" ]; then
+        return
+    fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ofctl_show_${bridge}
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
             of_ver="`get_bridge_of_version $bridge`"
             if [ -n "$of_ver" ]; then
                 ovs-ofctl -O $of_ver show $bridge| tee $cache
             else
                 ovs-ofctl show $bridge| tee $cache
             fi
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
-    fi
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ovs_vsctl_show ()
@@ -204,16 +215,17 @@ get_ovs_vsctl_show ()
     sos=${root}sos_commands/openvswitch/ovs-vsctl_-t_5_show
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.vsctl_show
-        if ! [ -r "$cache" ]; then
-            ovs-vsctl show| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
+        return
     fi
+
+    cache=$COMMAND_CACHE_PATH/cache.vsctl_show
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ovs-vsctl show| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ovs_appctl_fdbshow ()
@@ -222,16 +234,17 @@ get_ovs_appctl_fdbshow ()
     sos=${root}sos_commands/openvswitch/ovs-appctl_fdb.show_${bridge}
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ovs-appctl_fdb.show_${bridge}
-        if ! [ -r "$cache" ]; then
-            ovs-appctl fdb/show $bridge| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
+        return
     fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ovs-appctl_fdb.show_${bridge}
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ovs-appctl fdb/show $bridge| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ovsdb_client_list_dump ()
@@ -239,43 +252,54 @@ get_ovsdb_client_list_dump ()
     sos=${root}sos_commands/openvswitch/ovsdb-client_-f_list_dump
     if [ -r "${root}sos_commands" ]; then
         cat $sos
-    else
-        ( flock -e 200
-        cache=$COMMAND_CACHE_PATH/cache.ovsdb-client_-f_list_dump
-        if ! [ -r "$cache" ]; then
-            ovsdb-client -f list dump| tee $cache
-        else
-            cat $cache
-        fi
-        ) 200>$LOCKPATH
+        return
     fi
+
+    cache=$COMMAND_CACHE_PATH/cache.ovsdb-client_-f_list_dump
+    ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ovsdb-client -f list dump| tee $cache
+      fi
+    ) 200>$LOCKPATH
 }
 
 get_ns_ip_addr_show_all ()
 {
     #NOTE: this is a bit of a hack to make sos version look the same as real
     sos=${root}sos_commands/networking/ip_netns_exec_*_ip_address_show
-    cache=$COMMAND_CACHE_PATH/cache.all_ipnetnsipas
+    cache=$COMMAND_CACHE_PATH/cache.ipnetns_all_ip_addr_show
+
+    tmp=`mktemp`
+    echo 0 > $tmp
     ( flock -e 200
+      if [ -r "$cache" ]; then
+          cat $cache
+          echo 1 > $tmp
+      fi
+    ) 200>$LOCKPATH
+
+    ((`cat $tmp`)) && return
+
     if [ -r "${root}sos_commands" ]; then
-        if [ -r "$cache" ]; then
-            cat $cache
-        else
-            readarray -t namespaces<<<"`get_ip_netns`"
-            { ((${#namespaces[@]}==0)) || [ -z "${namespaces[0]}" ]; } && return
+        readarray -t namespaces<<<"`get_ip_netns`"
+        if ((${#namespaces[@]}>0)) && [ -n "${namespaces[0]}" ]; then
             for ns in "${namespaces[@]}"; do
                 # NOTE: sometimes ip netns contains (id: <id>) and sometimes it doesn't
                 ns=${ns%% *}
                 echo "netns: $ns"
                 get_ns_ip_addr_show $ns
-            done | tee $cache
+            done > $tmp
+        else
+            return
         fi
     else
-        if ! [ -r "$cache" ]; then
-            ip -all netns exec ip addr show| tee $cache
-        else
-            cat $cache
-        fi
+        ip -all netns exec ip addr show > $tmp
     fi
+
+    ( flock -e 200
+        mv $tmp $cache
+        cat $cache
     ) 200>$LOCKPATH
 }
