@@ -641,8 +641,8 @@ hostname=`get_hostname`
 
 if $do_show_summary; then
     echo "Data source: $root"
-    echo "Host: hostname"
-    echo "Data destination: $results_path"
+    echo "Dataset root: $results_path"
+    echo "Host: $hostname"
 fi
 
 results_path=$results_path$hostname
