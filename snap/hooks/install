@@ -1,0 +1,4 @@
+#!/bin/sh -e
+# Create tmp dir for TMPDIR i.e. mktemp
+mkdir -p $SNAP_COMMON/tmp
+chmod 1777 $SNAP_COMMON/tmp

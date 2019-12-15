@@ -17,6 +17,7 @@ compress_dataset=false
 archive_tag=
 tree_depth=
 MAX_PARALLEL_JOBS=32
+scratch_area=
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
 REG_PORT=5
@@ -32,7 +33,7 @@ echo -e "\nOPTS:"
 cat << EOF
     --archive-tag
     --compress
-    --depth
+    --depth|-L
     --overwrite|--force
     --quiet|-q
     --results-path|-p (default=TMP)
@@ -54,7 +55,7 @@ while (($#)); do
         --delete)
             do_delete_results=true
             ;;
-        --depth)
+        --depth|-L)
             tree_depth="$2"
             shift
             ;;
@@ -345,8 +346,8 @@ load_bridges_port_flows ()
 {
     # loads flows for bridges ports and disects.
 
-    current_jobs=0
     for bridge in `ls $results_path/ovs/bridges`; do
+        current_port_jobs=0
         for id in `ls $results_path/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
             {
             flows_root=$results_path/ovs/bridges/$bridge/ports/$id/flows
@@ -395,41 +396,49 @@ load_bridges_port_flows ()
             proto=$proto_flows_root/udp
             egrep "udp" $flows_root/all| grep -v udp6 >> $proto
             [ -s "$proto" ] || rm -f $proto
-
-            # this is what neutron uses to modify src mac for dvr
-            flows_root=$results_path/ovs/bridges/$bridge
-            mod_dl_src_root=$flows_root/flowinfo/mod_dl_src
-            if `grep -q "mod_dl_src" $flows_root/flows`; then
-                mkdir -p $mod_dl_src_root
-                readarray -t lines<<<"`grep mod_dl_src $flows_root/flows`"
-                for line in "${lines[@]}"; do
-                    mod_dl_src_mac=`echo "$line"| sed -r 's/.+mod_dl_src:([[:alnum:]\:]+).+/\1/g;t;d'`
-
-                    orig_mac=`echo "$line"| sed -r 's/.+,dl_dst=([[:alnum:]\:]+).+/\1/g;t;d'`
-                    if [ -n "$orig_mac" ]; then
-                        # ingress i.e. if dst==remote replace src dvr_mac with local
-                        local_mac=$mod_dl_src_mac
-                        target_path=$mod_dl_src_root/ingress
-                        target_mac=$orig_mac
-                    else
-                        # egress i.e. if src==local set src=dvr_mac
-                        local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
-                        target_path=$mod_dl_src_root/egress
-                        target_mac=$mod_dl_src_mac
-                    fi
-                    mkdir -p $target_path
-                    local_mac_path="`find $results_path -name hwaddr| xargs -l grep -l $local_mac`"
-                    if [ -n "$local_mac_path" ]; then
-                        rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../../..,g"`"
-                        ln -s $rel_path $target_path/$target_mac
-                    else
-                        echo "$local_mac" > $target_path/$target_mac
-                    fi
-                done
-            fi
             } &
-            job_wait $((++current_jobs)) && wait
+            job_wait $((++current_port_jobs)) && wait
         done
+
+        # this is what neutron uses to modify src mac for dvr
+        bridge_flows_root=$results_path/ovs/bridges/$bridge
+        mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
+
+        mod_dl_src_out=$scratch_area/mod_dl_src.$$.`date +%s`
+        grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_out
+        if [ -s "$mod_dl_src_out" ]; then
+            mkdir -p $mod_dl_src_root
+            current_bridge_jobs=0
+            while read line; do
+                {
+                mod_dl_src_mac=`echo "$line"| sed -r 's/.+mod_dl_src:([[:alnum:]\:]+).+/\1/g;t;d'`
+                orig_mac=""
+                if `echo "$line"| grep -q dl_dst`; then
+                    orig_mac=`echo "$line"| sed -r 's/.+,dl_dst=([[:alnum:]\:]+).+/\1/g;t;d'`
+                fi
+                if [ -n "$orig_mac" ]; then
+                    # ingress i.e. if dst==remote replace src dvr_mac with local
+                    local_mac=$mod_dl_src_mac
+                    target_path=$mod_dl_src_root/ingress
+                    target_mac=$orig_mac
+                else
+                    # egress i.e. if src==local set src=dvr_mac
+                    local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
+                    target_path=$mod_dl_src_root/egress
+                    target_mac=$mod_dl_src_mac
+                fi
+                mkdir -p $target_path
+                local_mac_path="`egrep -l '$local_mac' $results_path/ovs/ports/*/hwaddr`"
+                if [ -n "$local_mac_path" ]; then
+                    rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../../..,g"`"
+                    ln -s $rel_path $target_path/$target_mac
+                else
+                    echo "$local_mac" > $target_path/$target_mac
+                fi
+                } &
+                job_wait $((++current_bridge_jobs)) && wait
+            done < $mod_dl_src_out
+        fi
         wait
     done    
 }
@@ -522,29 +531,43 @@ check_error ()
 
 create_dataset ()
 {
-    $do_show_summary && echo -en "\nCreating dataset..."
+    $do_show_summary && echo -en "\nCreating dataset"
 
     # ordering is important!
     load_namespaces 2>$results_path/error.$$; check_error "namespaces"
+    echo -n "."
     load_ovs_bridges 2>$results_path/error.$$; check_error "ovs bridges"
+    echo -n "."
     load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
+    echo -n "."
     load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
+    echo -n "."
 
     load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans"
+    echo -n "."
     load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables"
+    echo -n "."
     load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans"
+    echo -n "."
     load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info"
+    echo -n "."
     wait
 
     load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs"
+    echo -n "."
 
     # do this first so that we can use reg5 to identify port flows if it exists
     load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs"
+    echo -n "."
     wait
     # these depend on everything else existing so wait till the rest is finished
     load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows"
+    echo -n "."
     load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids"
+    echo -n "."
     wait
+
+    echo ""
 
     $do_show_summary && echo "done."
 }
@@ -584,6 +607,7 @@ show_summary ()
 
 ## MAIN ##
 
+scratch_area=`mktemp -d`
 tmp_datastore=
 cleanup () {
     wait
@@ -591,6 +615,7 @@ cleanup () {
         echo -e "\nDeleting datastore at $tmp_datastore"
         rm -rf $tmp_datastore
     fi
+    rm -rf $scratch_area
     [ -e "$COMMAND_CACHE_PATH" ] && rm -rf $COMMAND_CACHE_PATH
     $do_show_summary && echo -e "\nDone."
 }
@@ -614,12 +639,13 @@ fi
 # get hostname
 hostname=`get_hostname`
 
-results_path=$results_path$hostname
-
 if $do_show_summary; then
     echo "Data source: $root"
+    echo "Host: hostname"
     echo "Data destination: $results_path"
 fi
+
+results_path=$results_path$hostname
 
 if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
     if ! $force; then
