@@ -16,6 +16,12 @@ do_show_summary=true
 compress_dataset=false
 archive_tag=
 tree_depth=
+MAX_PARALLEL_JOBS=32
+
+# See neutron/agent/linux/openvswitch_firewall/constants.py
+REG_PORT=5
+REG_NET=6
+REG_REMOTE_GROUP=7
 
 . `dirname $(readlink -f $0)`/common.sh
 
@@ -26,12 +32,12 @@ echo -e "\nOPTS:"
 cat << EOF
     --archive-tag
     --compress
+    --depth
     --overwrite|--force
     --quiet|-q
-    --summary
     --results-path|-p (default=TMP)
+    --summary
     --tree
-    --depth
     --help|-h
 EOF
 echo -e "\nINFO:"
@@ -41,21 +47,12 @@ echo "    <TMP> is a temporary directory"
 
 while (($#)); do
     case $1 in
-        --results-path|-p)
-            results_path="$2"
+        --archive-tag)
+            archive_tag="$2"
             shift
-            ;;
-        --overwrite|--force)
-            force=true
-            ;;
-        --summary)
-            do_create_dataset=false
             ;;
         --delete)
             do_delete_results=true
-            ;;
-        --tree)
-            do_show_dataset=true
             ;;
         --depth)
             tree_depth="$2"
@@ -64,12 +61,25 @@ while (($#)); do
         --compress)
             compress_dataset=true
             ;;
+        --max-parallel-jobs|-j)
+            MAX_PARALLEL_JOBS=$2
+            shift
+            ;;
+        --overwrite|--force)
+            force=true
+            ;;
         --quiet|-q)
             do_show_summary=false
             ;;
-        --archive-tag)
-            archive_tag="$2"
+        --results-path|-p)
+            results_path="$2"
             shift
+            ;;
+        --summary)
+            do_create_dataset=false
+            ;;
+        --tree)
+            do_show_dataset=true
             ;;
         --help|-h)
             usage
@@ -113,6 +123,7 @@ load_ovs_bridges_ports()
     # loads all ports on all bridges
     # :requires: load_ovs_bridges
 
+    current_jobs=0
     for bridge in `ls $results_path/ovs/bridges`; do
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
             sed -r 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/g;t;d'`"
@@ -139,6 +150,7 @@ load_ovs_bridges_ports()
                         $results_path/linux/ports/$name/ovs
                 fi
             } &
+            job_wait $((++current_jobs)) && wait
         done
         wait
     done
@@ -203,12 +215,24 @@ load_bridges_port_macs ()
     done
 }
 
+job_wait ()
+{
+    local current_jobs=$1
+
+    if ((current_jobs)) && ! ((current_jobs % MAX_PARALLEL_JOBS)); then
+        return 0
+    else
+        return 1
+    fi
+}
+
 load_bridges_port_ns_attach_info ()
 {
     # for each port on each bridge, determine if that port is attached to a
     # a namespace and if it is using a veth pair to do so, get info on the
     # peer interface.
 
+    current_jobs=0
     for bridge in `ls $results_path/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
             {
@@ -233,7 +257,7 @@ load_bridges_port_ns_attach_info ()
 
                 if [ -n "$if_id" ]; then
                     ns_port="`get_ns_ip_addr_show $ns_name| 
-                           sed -r \"s,${if_id}:\s+(.+)@[[:alnum:]]+:\s+.+,\1,g;t;d\"`"
+                           sed -r \"s,^${if_id}:\s+(.+)@[[:alnum:]]+:\s+.+,\1,g;t;d\"`"
                 else
                     ns_port="`get_ns_ip_addr_show $ns_name| 
                            sed -r \"s,[[:digit:]]+:\s+(.*${port_suffix})(@[[:alnum:]]+)?:\s+.+,\1,g;t;d\"`"
@@ -279,6 +303,7 @@ load_bridges_port_ns_attach_info ()
                 fi
             fi
             } &
+            job_wait $((++current_jobs)) && wait
         done
         wait
     done
@@ -320,6 +345,7 @@ load_bridges_port_flows ()
 {
     # loads flows for bridges ports and disects.
 
+    current_jobs=0
     for bridge in `ls $results_path/ovs/bridges`; do
         for id in `ls $results_path/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
             {
@@ -402,16 +428,11 @@ load_bridges_port_flows ()
                 done
             fi
             } &
+            job_wait $((++current_jobs)) && wait
         done
         wait
     done    
 }
-
-
-# See neutron/agent/linux/openvswitch_firewall/constants.py
-REG_PORT=5
-REG_NET=6
-REG_REMOTE_GROUP=7
 
 # used by neutron openvswitch firewall driver
 load_bridge_flow_regs ()
@@ -509,19 +530,20 @@ create_dataset ()
     load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
     load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
 
-    load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans" &
-    load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables" &
-    load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans" &
-    load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info" &
+    load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans"
+    load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables"
+    load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans"
+    load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info"
     wait
-    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs" &
+
+    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs"
 
     # do this first so that we can use reg5 to identify port flows if it exists
-    load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs" &
+    load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs"
     wait
     # these depend on everything else existing so wait till the rest is finished
-    load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows" &
-    load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids" &
+    load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows"
+    load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids"
     wait
 
     $do_show_summary && echo "done."
@@ -577,6 +599,10 @@ trap cleanup EXIT INT
 if [ -z "$results_path" ]; then
     tmp_datastore=`mktemp -d`
     results_path=$tmp_datastore
+fi
+
+if ((MAX_PARALLEL_JOBS < 0)); then
+    MAX_PARALLEL_JOBS=0
 fi
 
 # Add missing slash
