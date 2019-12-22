@@ -535,39 +535,37 @@ create_dataset ()
 
     # ordering is important!
     load_namespaces 2>$results_path/error.$$; check_error "namespaces"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_ovs_bridges 2>$results_path/error.$$; check_error "ovs bridges"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
-    echo -n "."
+    $do_show_summary && echo -n "."
 
     load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info"
-    echo -n "."
+    $do_show_summary && echo -n "."
     wait
 
     load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs"
-    echo -n "."
+    $do_show_summary && echo -n "."
 
     # do this first so that we can use reg5 to identify port flows if it exists
     load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs"
-    echo -n "."
+    $do_show_summary && echo -n "."
     wait
     # these depend on everything else existing so wait till the rest is finished
     load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows"
-    echo -n "."
+    $do_show_summary && echo -n "."
     load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids"
-    echo -n "."
+    $do_show_summary && echo -n "."
     wait
-
-    echo ""
 
     $do_show_summary && echo "done."
 }
@@ -636,8 +634,28 @@ if [ -n "${results_path}" ]; then
     [ "${results_path:(-1)}" = "/" ] || results_path="${results_path}/"
 fi
 
-# get hostname
-hostname=`get_hostname`
+hostname=
+if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
+    if ! $force; then
+        echo -e "\nWARNING: $results_path already exists! - skipping create"
+        do_create_dataset=false
+        readarray -t hosts<<<"`ls -A $results_path`"
+        if ((${#hosts[@]}>1)); then
+            echo -n "Multiple hosts found: ${hosts[@]} - which would you like to use? "
+            read answer
+            hostname=$answer
+        else
+            hostname=${hosts[0]}
+        fi
+    else
+        rm -rf $results_path
+    fi
+fi
+
+if [ -z "$hostname" ]; then
+    # get hostname
+    hostname=`get_hostname`
+fi
 
 if $do_show_summary; then
     echo "Data source: $root"
@@ -646,15 +664,6 @@ if $do_show_summary; then
 fi
 
 results_path=$results_path$hostname
-
-if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
-    if ! $force; then
-    echo -e "\nWARNING: $results_path already exists! - skipping create"
-        do_create_dataset=false
-    else
-        rm -rf $results_path
-    fi
-fi
 
 # If we are going to be creating data then pre-load the caches
 $do_create_dataset && cache_preload
