@@ -630,7 +630,7 @@ trap cleanup EXIT INT
 
 if [ -z "$RESULTS_PATH" ]; then
     tmp_datastore=`mktemp -d`
-    RESULTS_PATH=$tmp_datastore
+    RESULTS_PATH=${tmp_datastore}/
 else
     [ "${RESULTS_PATH:(-1)}" = "/" ] || RESULTS_PATH="${RESULTS_PATH}/"
 fi
