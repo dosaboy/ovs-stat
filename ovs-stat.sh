@@ -674,7 +674,7 @@ if [ -z "$hostname" ]; then
 fi
 
 if $do_show_summary; then
-    echo "Data source: $DATA_SOURCE"
+    $do_create_dataset && echo "Data source: ${DATA_SOURCE:-<host>}"
     echo "Dataset root: $RESULTS_PATH"
     echo "Host: $hostname"
 fi
