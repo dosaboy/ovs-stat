@@ -6,8 +6,8 @@
 #  - edward.hope-morley@canonical.com
 #  - opentastic@gmail.com
 #
-root=.
-results_path=
+DATA_SOURCE=
+RESULTS_PATH=
 force=false
 do_show_dataset=false
 do_create_dataset=true
@@ -28,22 +28,31 @@ REG_REMOTE_GROUP=7
 
 usage ()
 {
-echo "USAGE: `basename $0` [OPTS] [datapath]"
+echo "USAGE: ovs-stat [OPTS] [datapath]"
 echo -e "\nOPTS:"
 cat << EOF
-    --archive-tag
-    --compress
-    --depth|-L
+    --compress [--archive-tag <tag>]
+        Create a tarball of the resulting dataset and optionally name it with a
+        provided tag.
     --overwrite|--force
+        By default if the dataset path already exists it will be treated as
+        readonly unless this option is provided in which case all data is wiped
+        prior to creating the dataset.
     --quiet|-q
-    --results-path|-p (default=TMP)
-    --summary
-    --tree
+        Do not display any debug or summary output.
+    --results-path|-p <dir> (default=TMPDIR)
+        Path in which to create dataset.
+    --summary|-s
+        Only display summary.
+    --tree  [--depth|-L <int>]
+        Run the tree command on the resulting dataset and optionally provide a
+        maximum depth to display.
     --help|-h
+        Print this usage output.
 EOF
 echo -e "\nINFO:"
-echo "    <datapath> defaults to /"
-echo "    <TMP> is a temporary directory"
+echo "    <datapath> defaults to / i.e. ovs running on local host"
+echo "    <dir> defaults to \$TMPDIR env variable if set otherwise /tmp"
 }
 
 while (($#)); do
@@ -55,40 +64,40 @@ while (($#)); do
         --delete)
             do_delete_results=true
             ;;
-        --depth|-L)
+        -L|--depth)
             tree_depth="$2"
             shift
             ;;
         --compress)
             compress_dataset=true
             ;;
-        --max-parallel-jobs|-j)
+        -j|--max-parallel-jobs)
             MAX_PARALLEL_JOBS=$2
             shift
             ;;
         --overwrite|--force)
             force=true
             ;;
-        --quiet|-q)
+        -q|--quiet)
             do_show_summary=false
             ;;
-        --results-path|-p)
-            results_path="$2"
+        -p|--results-path)
+            RESULTS_PATH="$2"
             shift
             ;;
-        --summary)
+        -s|--summary)
             do_create_dataset=false
             ;;
         --tree)
             do_show_dataset=true
             ;;
-        --help|-h)
+        -h|--help)
             usage
             exit 0
             ;;
         *)
             [ -d "$1" ] || { echo "ERROR: data directory '$1' does not exist"; exit 1; }
-            root=$1
+            DATA_SOURCE=$1
             ;;
     esac
     shift
@@ -102,7 +111,7 @@ load_namespaces ()
     { ((${#namespaces[@]}==0)) || [ -z "${namespaces[0]}" ]; } && return
     for ns in "${namespaces[@]}"; do
         #NOTE: sometimes ip netns contains (id: <id>) and sometimes it doesnt
-        mkdir -p $results_path/linux/namespaces/${ns%% *}
+        mkdir -p $RESULTS_PATH/linux/namespaces/${ns%% *}
     done
 }
 
@@ -112,10 +121,10 @@ load_ovs_bridges()
 
     readarray -t bridges<<<"`get_ovs_vsctl_show| \
         sed -r 's/.*Bridge\s+\"?([[:alnum:]\-]+)\"*/\1/g;t;d'`"
-    mkdir -p $results_path/ovs/bridges
+    mkdir -p $RESULTS_PATH/ovs/bridges
     ((${#bridges[@]})) && [ -n "${bridges[0]}" ] || return
     for bridge in ${bridges[@]}; do
-        mkdir -p $results_path/ovs/bridges/$bridge
+        mkdir -p $RESULTS_PATH/ovs/bridges/$bridge
     done
 }
 
@@ -125,30 +134,30 @@ load_ovs_bridges_ports()
     # :requires: load_ovs_bridges
 
     current_jobs=0
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
             sed -r 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/g;t;d'`"
-        mkdir -p $results_path/ovs/bridges/$bridge/ports
+        mkdir -p $RESULTS_PATH/ovs/bridges/$bridge/ports
         ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
         for port in "${ports[@]}"; do
             {
                 name=${port##*:}
                 id=${port%%:*}
 
-                mkdir -p $results_path/ovs/ports/$name
+                mkdir -p $RESULTS_PATH/ovs/ports/$name
                 ln -s ../../bridges/$bridge \
-                    $results_path/ovs/ports/$name/bridge
+                    $RESULTS_PATH/ovs/ports/$name/bridge
                 ln -s ../../../ports/$name \
-                    $results_path/ovs/bridges/$bridge/ports/$id
-                echo $id > $results_path/ovs/ports/$name/id
+                    $RESULTS_PATH/ovs/bridges/$bridge/ports/$id
+                echo $id > $RESULTS_PATH/ovs/ports/$name/id
 
                 # is it actually a linux port - create fwd and rev ref
                 if `get_ip_link_show| grep -q $name`; then
-                    mkdir -p $results_path/linux/ports/$name
+                    mkdir -p $RESULTS_PATH/linux/ports/$name
                     ln -s ../../../linux/ports/$name \
-                        $results_path/ovs/ports/$name/hostnet
+                        $RESULTS_PATH/ovs/ports/$name/hostnet
                     ln -s ../../../ovs/ports/$name \
-                        $results_path/linux/ports/$name/ovs
+                        $RESULTS_PATH/linux/ports/$name/ovs
                 fi
             } &
             job_wait $((++current_jobs)) && wait
@@ -162,8 +171,8 @@ load_bridges_port_vlans ()
     # loads all port vlans on all bridges
     # :requires: load_bridges_flow_vlans
 
-    mkdir -p $results_path/ovs/vlans
-    for bridge in `ls $results_path/ovs/bridges`; do
+    mkdir -p $RESULTS_PATH/ovs/vlans
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
             readarray -t vlans<<<"`get_ovs_vsctl_show $bridge| \
                 grep -A 1 \"Port \\\"$port\\\"\"| \
@@ -171,11 +180,11 @@ load_bridges_port_vlans ()
                     sort -n | uniq`"
             ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || continue
             for vlan in ${vlans[@]}; do
-                mkdir -p $results_path/ovs/vlans/$vlan/ports
+                mkdir -p $RESULTS_PATH/ovs/vlans/$vlan/ports
                 ln -s ../../vlans/$vlan \
-                    $results_path/ovs/ports/$port/vlan
+                    $RESULTS_PATH/ovs/ports/$port/vlan
                 ln -s ../../../ports/$port \
-                    $results_path/ovs/vlans/$vlan/ports/$port
+                    $RESULTS_PATH/ovs/vlans/$vlan/ports/$port
             done
         done
     done
@@ -186,12 +195,12 @@ load_bridges_flow_vlans ()
     # loads all vlans contained in flows on bridge
     # :requires: load_ovs_bridges
 
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         readarray -t vlans<<<"`get_ovs_ofctl_dump_flows $bridge| \
                                sed -r -e 's/.+vlan=([[:digit:]]+)[,\s]+.+/\1/g;t;d' \
                                       -e 's/.+vid:([[:digit:]]+)[,\s]+.+/\1/g;t;d'| \
                                sort -n| uniq`"
-        flow_vlans_root=$results_path/ovs/bridges/$bridge/flowinfo/vlans
+        flow_vlans_root=$RESULTS_PATH/ovs/bridges/$bridge/flowinfo/vlans
         mkdir -p $flow_vlans_root
         ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || continue
         for vlan in ${vlans[@]}; do
@@ -206,12 +215,12 @@ load_bridges_port_macs ()
     # other means.
     # :requires: load_ovs_bridges_ports
 
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
-            [ -e "$results_path/ovs/ports/$port/hwaddr" ] && continue
+            [ -e "$RESULTS_PATH/ovs/ports/$port/hwaddr" ] && continue
             mac=`get_ovs_ofctl_show $bridge| \
                  sed -r "s/^\s+.+\($port\):\s+addr:(.+)/\1/g;t;d"`
-            echo $mac > $results_path/ovs/ports/$port/hwaddr
+            echo $mac > $RESULTS_PATH/ovs/ports/$port/hwaddr
         done
     done
 }
@@ -234,7 +243,7 @@ load_bridges_port_ns_attach_info ()
     # peer interface.
 
     current_jobs=0
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
             {
             port_suffix=${port##tap}
@@ -253,7 +262,7 @@ load_bridges_port_ns_attach_info ()
             fi
 
             if [ -n "$ns_name" ]; then
-                mkdir -p $results_path/linux/namespaces/$ns_name/ports
+                mkdir -p $RESULTS_PATH/linux/namespaces/$ns_name/ports
                 if_id=`get_ip_link_show| grep $port| sed -r "s/.+${port}@if([[:digit:]]+):\s+.+/\1/g"`
 
                 if [ -n "$if_id" ]; then
@@ -267,34 +276,34 @@ load_bridges_port_ns_attach_info ()
                 if [ -n "$ns_port" ]; then
                     if [ "$ns_port" != "$port" ]; then
                         # it is a veth peer
-                        if [ -e "$results_path/linux/ports/$port" ]; then
-                            mkdir -p $results_path/linux/namespaces/$ns_name/ports/$ns_port
+                        if [ -e "$RESULTS_PATH/linux/ports/$port" ]; then
+                            mkdir -p $RESULTS_PATH/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../../ports/$port \
-                                $results_path/linux/namespaces/$ns_name/ports/$ns_port/veth_peer
+                                $RESULTS_PATH/linux/namespaces/$ns_name/ports/$ns_port/veth_peer
 
                             ln -s ../../namespaces/$ns_name/ports/$ns_port \
-                                $results_path/linux/ports/$port/veth_peer
+                                $RESULTS_PATH/linux/ports/$port/veth_peer
 
                             mac="`get_ns_ip_addr_show $ns_name| \
                                   grep -A 1 $port_suffix| \
                                   sed -r 's,.*link/ether\s+([[:alnum:]\:]+).+,\1,g;t;d'`"
-                            echo $mac > $results_path/linux/ports/$port/veth_peer/hwaddr
+                            echo $mac > $RESULTS_PATH/linux/ports/$port/veth_peer/hwaddr
                         else
                             echo "WARNING: ns veth pair peer (host) port $port not found"
                         fi
                     else
                         if [ -e "../../../ports/$port" ]; then
                             ln -s ../../../ports/$port \
-                                $results_path/linux/namespaces/$ns_name/ports/$ns_port
+                                $RESULTS_PATH/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../linux/namespaces/$ns_name \
-                                $results_path/linux/ports/$ns_port/namespace
-                            port_path="$results_path/linux/ports/$ns_port"
+                                $RESULTS_PATH/linux/ports/$ns_port/namespace
+                            port_path="$RESULTS_PATH/linux/ports/$ns_port"
                         else
                             ln -s ../../../../ovs/ports/$port \
-                                $results_path/linux/namespaces/$ns_name/ports/$ns_port
+                                $RESULTS_PATH/linux/namespaces/$ns_name/ports/$ns_port
                             ln -s ../../../linux/namespaces/$ns_name \
-                                $results_path/ovs/ports/$ns_port/namespace
-                            port_path="$results_path/ovs/ports/$ns_port"
+                                $RESULTS_PATH/ovs/ports/$ns_port/namespace
+                            port_path="$RESULTS_PATH/ovs/ports/$ns_port"
                         fi
                         mac="`get_ns_ip_addr_show $ns_name| \
                               grep -A 1 $port| \
@@ -312,11 +321,11 @@ load_bridges_port_ns_attach_info ()
 
 load_bridges_flows ()
 {
-    for bridge in `ls $results_path/ovs/bridges`; do
-        flows_path=$results_path/ovs/bridges/$bridge/flows
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
+        flows_path=$RESULTS_PATH/ovs/bridges/$bridge/flows
         get_ovs_ofctl_dump_flows $bridge > $flows_path
         readarray -t cookies <<<"`sed -r 's/.*cookie=0x([[:alnum:]]+),.+/\1/g;t;d' $flows_path| sort -u`"
-        cookies_path=$results_path/ovs/bridges/$bridge/flowinfo/cookies
+        cookies_path=$RESULTS_PATH/ovs/bridges/$bridge/flowinfo/cookies
         mkdir -p $cookies_path
         for c in ${cookies[@]}; do
             touch $cookies_path/$c
@@ -331,9 +340,9 @@ load_bridges_flows ()
 
 load_bridges_flow_tables ()
 {
-    for bridge in `ls $results_path/ovs/bridges`; do
-        tables_root=$results_path/ovs/bridges/$bridge/flowinfo/tables
-        bridge_flows=$results_path/ovs/bridges/$bridge/flows
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
+        tables_root=$RESULTS_PATH/ovs/bridges/$bridge/flowinfo/tables
+        bridge_flows=$RESULTS_PATH/ovs/bridges/$bridge/flows
         readarray -t tables<<<"`sed -r 's/.+table=([[:digit:]]+).+/\1/g;t;d' $bridge_flows| sort -un`"
         for t in "${tables[@]}"; do
             mkdir -p $tables_root/$t
@@ -346,12 +355,12 @@ load_bridges_port_flows ()
 {
     # loads flows for bridges ports and disects.
 
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         current_port_jobs=0
-        for id in `ls $results_path/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
+        for id in `ls $RESULTS_PATH/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
             {
-            flows_root=$results_path/ovs/bridges/$bridge/ports/$id/flows
-            port_mac=$results_path/ovs/bridges/$bridge/ports/$id/hwaddr
+            flows_root=$RESULTS_PATH/ovs/bridges/$bridge/ports/$id/flows
+            port_mac=$RESULTS_PATH/ovs/bridges/$bridge/ports/$id/hwaddr
             hexid=`printf '%x' $id`
 
             mkdir -p $flows_root
@@ -359,7 +368,7 @@ load_bridges_port_flows ()
                 egrep "in_port=$id[, ]+|output:$id[, ]+|reg5=0x${hexid}[ ,]+|$port_mac" > $flows_root/all
 
             mkdir -p $flows_root/by-table
-            for table in `ls $results_path/ovs/bridges/$bridge/flowinfo/tables`; do
+            for table in `ls $RESULTS_PATH/ovs/bridges/$bridge/flowinfo/tables`; do
                 table_flows=$flows_root/by-table/$table
                 egrep "table=$table," $flows_root/all > $table_flows
                 [ -s "$table_flows" ] || rm -f $table_flows
@@ -401,7 +410,7 @@ load_bridges_port_flows ()
         done
 
         # this is what neutron uses to modify src mac for dvr
-        bridge_flows_root=$results_path/ovs/bridges/$bridge
+        bridge_flows_root=$RESULTS_PATH/ovs/bridges/$bridge
         mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
 
         mod_dl_src_out=$scratch_area/mod_dl_src.$$.`date +%s`
@@ -428,9 +437,9 @@ load_bridges_port_flows ()
                     target_mac=$mod_dl_src_mac
                 fi
                 mkdir -p $target_path
-                local_mac_path="`egrep -l '$local_mac' $results_path/ovs/ports/*/hwaddr`"
+                local_mac_path="`egrep -l '$local_mac' $RESULTS_PATH/ovs/ports/*/hwaddr`"
                 if [ -n "$local_mac_path" ]; then
-                    rel_path="`echo "$local_mac_path"| sed -r "s,$results_path,../../../../../..,g"`"
+                    rel_path="`echo "$local_mac_path"| sed -r "s,$RESULTS_PATH,../../../../../..,g"`"
                     ln -s $rel_path $target_path/$target_mac
                 else
                     echo "$local_mac" > $target_path/$target_mac
@@ -446,10 +455,10 @@ load_bridges_port_flows ()
 # used by neutron openvswitch firewall driver
 load_bridge_flow_regs ()
 {
-    for bridge in `ls $results_path/ovs/bridges`; do
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
         readarray -t regs<<<"`get_ovs_ofctl_dump_flows $bridge | \
             sed -r 's/.+(reg[[:digit:]]+)=(0x[[:alnum:]]+).+/\1=\2/g;t;d'| sort -u`"
-        regspath=$results_path/ovs/bridges/$bridge/flowinfo/registers
+        regspath=$RESULTS_PATH/ovs/bridges/$bridge/flowinfo/registers
         mkdir -p $regspath
         ((${#regs[@]})) && [ -n "${regs[0]}" ] || continue
         # reg5 is portid
@@ -481,16 +490,16 @@ load_bridge_flow_regs ()
 # used by neutron openvswitch firewall driver
 load_bridge_conjunctive_flow_ids ()
 {
-    for bridge in `ls $results_path/ovs/bridges`; do
-        readarray -t conj_ids<<<"`cat $results_path/ovs/bridges/$bridge/flows| \
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
+        readarray -t conj_ids<<<"`cat $RESULTS_PATH/ovs/bridges/$bridge/flows| \
             sed -r 's/.+conj_id=([[:digit:]]+).+/\1/g;t;d'| sort -u`"
-        conj_ids_path=$results_path/ovs/bridges/$bridge/flowinfo/conj_ids
+        conj_ids_path=$RESULTS_PATH/ovs/bridges/$bridge/flowinfo/conj_ids
         mkdir -p $conj_ids_path
         ((${#conj_ids[@]})) && [ -n "${conj_ids[0]}" ] || continue
         for id in ${conj_ids[@]}; do
             mkdir -p $conj_ids_path/$id
             egrep "conj_id=$id[, ]|conjunction\($id," \
-                    $results_path/ovs/bridges/$bridge/flows > \
+                    $RESULTS_PATH/ovs/bridges/$bridge/flows > \
                 $conj_ids_path/$id/flows
         done
     done
@@ -504,8 +513,8 @@ get_ovs_bridge_port ()
     bridge=$1
     port=$2
 
-    [ -e "$results_path/ovs/bridges/$bridge/ports/$port" ] || return
-    readlink -f $results_path/ovs/bridges/$bridge/ports/$port| \
+    [ -e "$RESULTS_PATH/ovs/bridges/$bridge/ports/$port" ] || return
+    readlink -f $RESULTS_PATH/ovs/bridges/$bridge/ports/$port| \
         xargs -l basename
 }
 
@@ -516,17 +525,17 @@ get_ovs_bridge_ports ()
 
     bridge=$1
 
-    ((`ls $results_path/ovs/bridges/$bridge/ports/| wc -l`)) || return
-    find $results_path/ovs/bridges/$bridge/ports/*| xargs -l readlink -f| \
+    ((`ls $RESULTS_PATH/ovs/bridges/$bridge/ports/| wc -l`)) || return
+    find $RESULTS_PATH/ovs/bridges/$bridge/ports/*| xargs -l readlink -f| \
         xargs -l basename
 }
 
 check_error ()
 {
-    if [ -s "$results_path/error.$$" ]; then
-        echo "ERROR: unable to load $1: `cat $results_path/error.$$`"
+    if [ -s "$RESULTS_PATH/error.$$" ]; then
+        echo "ERROR: unable to load $1: `cat $RESULTS_PATH/error.$$`"
     fi
-    rm -f $results_path/error.$$
+    rm -f $RESULTS_PATH/error.$$
 }
 
 create_dataset ()
@@ -534,36 +543,36 @@ create_dataset ()
     $do_show_summary && echo -en "\nCreating dataset"
 
     # ordering is important!
-    load_namespaces 2>$results_path/error.$$; check_error "namespaces"
+    load_namespaces 2>$RESULTS_PATH/error.$$; check_error "namespaces"
     $do_show_summary && echo -n "."
-    load_ovs_bridges 2>$results_path/error.$$; check_error "ovs bridges"
+    load_ovs_bridges 2>$RESULTS_PATH/error.$$; check_error "ovs bridges"
     $do_show_summary && echo -n "."
-    load_bridges_flows 2>$results_path/error.$$; check_error "bridge flows"
+    load_bridges_flows 2>$RESULTS_PATH/error.$$; check_error "bridge flows"
     $do_show_summary && echo -n "."
-    load_ovs_bridges_ports 2>$results_path/error.$$; check_error "bridge ports"
+    load_ovs_bridges_ports 2>$RESULTS_PATH/error.$$; check_error "bridge ports"
     $do_show_summary && echo -n "."
 
-    load_bridges_port_vlans 2>$results_path/error.$$; check_error "port vlans"
+    load_bridges_port_vlans 2>$RESULTS_PATH/error.$$; check_error "port vlans"
     $do_show_summary && echo -n "."
-    load_bridges_flow_tables 2>$results_path/error.$$; check_error "bridge flow tables"
+    load_bridges_flow_tables 2>$RESULTS_PATH/error.$$; check_error "bridge flow tables"
     $do_show_summary && echo -n "."
-    load_bridges_flow_vlans 2>$results_path/error.$$; check_error "flow vlans"
+    load_bridges_flow_vlans 2>$RESULTS_PATH/error.$$; check_error "flow vlans"
     $do_show_summary && echo -n "."
-    load_bridges_port_ns_attach_info 2>$results_path/error.$$; check_error "port ns info"
+    load_bridges_port_ns_attach_info 2>$RESULTS_PATH/error.$$; check_error "port ns info"
     $do_show_summary && echo -n "."
     wait
 
-    load_bridges_port_macs 2>$results_path/error.$$; check_error "port macs"
+    load_bridges_port_macs 2>$RESULTS_PATH/error.$$; check_error "port macs"
     $do_show_summary && echo -n "."
 
     # do this first so that we can use reg5 to identify port flows if it exists
-    load_bridge_flow_regs 2>$results_path/error.$$; check_error "flow regs"
+    load_bridge_flow_regs 2>$RESULTS_PATH/error.$$; check_error "flow regs"
     $do_show_summary && echo -n "."
     wait
     # these depend on everything else existing so wait till the rest is finished
-    load_bridges_port_flows 2>$results_path/error.$$; check_error "port flows"
+    load_bridges_port_flows 2>$RESULTS_PATH/error.$$; check_error "port flows"
     $do_show_summary && echo -n "."
-    load_bridge_conjunctive_flow_ids 2>$results_path/error.$$; check_error "conj_ids"
+    load_bridge_conjunctive_flow_ids 2>$RESULTS_PATH/error.$$; check_error "conj_ids"
     $do_show_summary && echo -n "."
     wait
 
@@ -572,33 +581,33 @@ create_dataset ()
 
 show_summary ()
 {
-    num=`ls $results_path/ovs/ports 2>/dev/null| wc -l`
+    num=`ls $RESULTS_PATH/ovs/ports 2>/dev/null| wc -l`
     echo -e "\nOVS ports:\n  $num"
 
     echo -e "\nOVS bridge ports:"
-    for b in `ls $results_path/ovs/bridges`; do
+    for b in `ls $RESULTS_PATH/ovs/bridges`; do
         echo -n "$b: "
-        ls $results_path/ovs/bridges/$b/ports| wc -l
+        ls $RESULTS_PATH/ovs/bridges/$b/ports| wc -l
     done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
 
-    num=`ls $results_path/ovs/vlans/ 2>/dev/null| wc -l`
+    num=`ls $RESULTS_PATH/ovs/vlans/ 2>/dev/null| wc -l`
     echo -e "\nOVS vlans:\n  $num"
 
     echo -e "\nTagged ports:"
-    for bridge in `ls $results_path/ovs/bridges`; do
-        num=`ls -d $results_path/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l`
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
+        num=`ls -d $RESULTS_PATH/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l`
         echo "$bridge: $num"
     done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
 
-    num=`ls $results_path/linux/namespaces/ 2>/dev/null| wc -l`
+    num=`ls $RESULTS_PATH/linux/namespaces/ 2>/dev/null| wc -l`
     echo -e "\nLinux namespaces with ovs ports associated (incl. veth pairs):\n  $num"
 
-    num=`ls -d $results_path/ovs/ports/*/hostnet/veth_peer 2>/dev/null| wc -l`
+    num=`ls -d $RESULTS_PATH/ovs/ports/*/hostnet/veth_peer 2>/dev/null| wc -l`
     echo -e "\nOVS ports with namespaced veth peers:\n  $num"
 
     echo -e "\nNeutron flow registers used:"
-    for bridge in `ls $results_path/ovs/bridges`; do
-        num=`ls -d $results_path/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l`
+    for bridge in `ls $RESULTS_PATH/ovs/bridges`; do
+        num=`ls -d $RESULTS_PATH/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l`
         echo "$bridge: $num"
     done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
 }
@@ -619,36 +628,43 @@ cleanup () {
 }
 trap cleanup EXIT INT
 
-if [ -z "$results_path" ]; then
+if [ -z "$RESULTS_PATH" ]; then
     tmp_datastore=`mktemp -d`
-    results_path=$tmp_datastore
+    RESULTS_PATH=$tmp_datastore
+else
+    [ "${RESULTS_PATH:(-1)}" = "/" ] || RESULTS_PATH="${RESULTS_PATH}/"
 fi
 
 if ((MAX_PARALLEL_JOBS < 0)); then
     MAX_PARALLEL_JOBS=0
 fi
 
-# Add missing slash
-[ "${root:(-1)}" = "/" ] || root="${root}/"
-if [ -n "${results_path}" ]; then
-    [ "${results_path:(-1)}" = "/" ] || results_path="${results_path}/"
+if [ -n "$DATA_SOURCE" ]; then
+    # Add missing slash
+    [ "${DATA_SOURCE:(-1)}" = "/" ] || DATA_SOURCE="${DATA_SOURCE}/"
 fi
 
 hostname=
-if $do_create_dataset && [ -e "$results_path" ] && [ -z "$tmp_datastore" ]; then
+if $do_create_dataset && [ -e "$RESULTS_PATH" ] && \
+        [ -z "$tmp_datastore" ]; then
     if ! $force; then
-        echo -e "\nWARNING: $results_path already exists! - skipping create"
         do_create_dataset=false
-        readarray -t hosts<<<"`ls -A $results_path`"
+        readarray -t hosts<<<"`ls -A $RESULTS_PATH`"
         if ((${#hosts[@]}>1)); then
-            echo -n "Multiple hosts found: ${hosts[@]} - which would you like to use? "
+            num=${#hosts[@]}
+            echo "Multiple hosts found in $RESULTS_PATH:"
+            for ((i=0;i<num;i++)); do
+                echo "[${i}] ${hosts[$i]}"
+            done
+            echo -en "\nWhich would you like to use? [0-$((num-1))]"
             read answer
-            hostname=$answer
+            echo ""
+            hostname=${hosts[$answer]}
         else
             hostname=${hosts[0]}
         fi
     else
-        rm -rf $results_path
+        rm -rf $RESULTS_PATH
     fi
 fi
 
@@ -658,31 +674,37 @@ if [ -z "$hostname" ]; then
 fi
 
 if $do_show_summary; then
-    echo "Data source: $root"
-    echo "Dataset root: $results_path"
+    echo "Data source: $DATA_SOURCE"
+    echo "Dataset root: $RESULTS_PATH"
     echo "Host: $hostname"
 fi
 
-results_path=$results_path$hostname
+RESULTS_PATH=$RESULTS_PATH$hostname
 
-# If we are going to be creating data then pre-load the caches
-$do_create_dataset && cache_preload
+if [ -e "$RESULTS_PATH" ]; then
+    echo -e "\nWARNING: $RESULTS_PATH already exists! - skipping create"
+else
+    # If we are going to be creating data then pre-load the caches
+    $do_show_summary && echo -en "\nPre-loading caches..."
+    $do_create_dataset && cache_preload
+    $do_show_summary && echo -n "done."
+fi
 
 # top-level structure
-mkdir -p $results_path/ovs
-mkdir -p $results_path/linux
+mkdir -p $RESULTS_PATH/ovs
+mkdir -p $RESULTS_PATH/linux
 # next-level
-mkdir -p $results_path/ovs/{bridges,ports,vlans}
-mkdir -p $results_path/linux/{namespaces,ports}
+mkdir -p $RESULTS_PATH/ovs/{bridges,ports,vlans}
+mkdir -p $RESULTS_PATH/linux/{namespaces,ports}
 # the rest is created dynamically
 
 $do_create_dataset && create_dataset
 
 # check for broken symlinks
-if ((`find $results_path -xtype l| wc -l`)); then
+if ((`find $RESULTS_PATH -xtype l| wc -l`)); then
     echo -e "\n================================================================================"
-    echo -e "WARNING: dataset contains broken links.\nExecute 'find $results_path -xtype l' to display them."
-    echo -e "================================================================================\n"
+    echo -e "WARNING: dataset contains broken links.\nExecute 'find $RESULTS_PATH -xtype l' to display them."
+    echo -e "================================================================================"
 fi
 
 $do_show_summary && show_summary
@@ -693,7 +715,7 @@ if $do_show_dataset; then
     if [ -n "$tree_depth" ]; then
         args+="-L $tree_depth"
     fi
-    tree $args $results_path
+    tree $args $RESULTS_PATH
 fi
 
 if $compress_dataset; then
@@ -701,6 +723,6 @@ if $compress_dataset; then
     [ -n "$archive_tag" ] && target+="-$archive_tag"
     target+="-`date +%d%m%y.%s`.tgz"
     echo -e "\nCompressing to `pwd`/$target"
-    tar -czf $target -C `dirname $results_path` $hostname
+    tar -czf $target -C `dirname $RESULTS_PATH` $hostname
 fi
 
