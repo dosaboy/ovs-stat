@@ -18,6 +18,7 @@ archive_tag=
 tree_depth=
 MAX_PARALLEL_JOBS=32
 scratch_area=
+HOSTNAME=
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
 REG_PORT=5
@@ -34,6 +35,10 @@ cat << EOF
     --compress [--archive-tag <tag>]
         Create a tarball of the resulting dataset and optionally name it with a
         provided tag.
+    --host
+        Optionally provided hostname. This is used when you want to run commands
+        like --tree against an existing dataset that contains data from
+        multiple hosts.
     --overwrite|--force
         By default if the dataset path already exists it will be treated as
         readonly unless this option is provided in which case all data is wiped
@@ -70,6 +75,10 @@ while (($#)); do
             ;;
         --compress)
             compress_dataset=true
+            ;;
+        --host)
+            HOSTNAME="$2"
+            shift
             ;;
         -j|--max-parallel-jobs)
             MAX_PARALLEL_JOBS=$2
@@ -644,42 +653,43 @@ if [ -n "$DATA_SOURCE" ]; then
     [ "${DATA_SOURCE:(-1)}" = "/" ] || DATA_SOURCE="${DATA_SOURCE}/"
 fi
 
-hostname=
 if $do_create_dataset && [ -e "$RESULTS_PATH" ] && \
         [ -z "$tmp_datastore" ]; then
     if ! $force; then
         do_create_dataset=false
-        readarray -t hosts<<<"`ls -A $RESULTS_PATH`"
-        if ((${#hosts[@]}>1)); then
-            num=${#hosts[@]}
-            echo "Multiple hosts found in $RESULTS_PATH:"
-            for ((i=0;i<num;i++)); do
-                echo "[${i}] ${hosts[$i]}"
-            done
-            echo -en "\nWhich would you like to use? [0-$((num-1))]"
-            read answer
-            echo ""
-            hostname=${hosts[$answer]}
-        else
-            hostname=${hosts[0]}
+        if [ -z "$HOSTNAME" ]; then
+            readarray -t hosts<<<"`ls -A $RESULTS_PATH`"
+            if ((${#hosts[@]}>1)); then
+                num=${#hosts[@]}
+                echo "Multiple hosts found in $RESULTS_PATH:"
+                for ((i=0;i<num;i++)); do
+                    echo "[${i}] ${hosts[$i]}"
+                done
+                echo -en "\nWhich would you like to use? [0-$((num-1))]"
+                read answer
+                echo ""
+                HOSTNAME=${hosts[$answer]}
+            else
+                HOSTNAME=${hosts[0]}
+            fi
         fi
     else
         rm -rf $RESULTS_PATH
     fi
 fi
 
-if [ -z "$hostname" ]; then
+if [ -z "$HOSTNAME" ]; then
     # get hostname
-    hostname=`get_hostname`
+    HOSTNAME=`get_hostname`
 fi
 
 if $do_show_summary; then
     $do_create_dataset && echo "Data source: ${DATA_SOURCE:-<host>}"
     echo "Dataset root: $RESULTS_PATH"
-    echo "Host: $hostname"
+    echo "Host: $HOSTNAME"
 fi
 
-RESULTS_PATH=$RESULTS_PATH$hostname
+RESULTS_PATH=$RESULTS_PATH$HOSTNAME
 
 if [ -e "$RESULTS_PATH" ]; then
     echo -e "\nWARNING: $RESULTS_PATH already exists! - skipping create"
@@ -719,10 +729,10 @@ if $do_show_dataset; then
 fi
 
 if $compress_dataset; then
-    target=ovs-stat-${hostname}
+    target=ovs-stat-${HOSTNAME}
     [ -n "$archive_tag" ] && target+="-$archive_tag"
     target+="-`date +%d%m%y.%s`.tgz"
     echo -e "\nCompressing to `pwd`/$target"
-    tar -czf $target -C `dirname $RESULTS_PATH` $hostname
+    tar -czf $target -C `dirname $RESULTS_PATH` $HOSTNAME
 fi
 
