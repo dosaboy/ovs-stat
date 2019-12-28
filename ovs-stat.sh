@@ -36,24 +36,29 @@ cat << EOF
     --compress [--archive-tag <tag>]
         Create a tarball of the resulting dataset and optionally name it with a
         provided tag.
+    --delete
+        Delete datastore once finished (i.e. on exit).
     --host
         Optionally provided hostname. This is used when you want to run commands
         like --tree against an existing dataset that contains data from
         multiple hosts.
-    --overwrite|--force
+    -j, --max-parallel-jobs
+        Some tasks will run in parallel with a maxiumum of $MAX_PARALLEL_JOBS
+        jobs. This options allows the maxium to be overriden.
+    --overwrite, --force
         By default if the dataset path already exists it will be treated as
         readonly unless this option is provided in which case all data is wiped
         prior to creating the dataset.
-    --quiet|-q
+    -q, --quiet
         Do not display any debug or summary output.
-    --results-path|-p <dir> (default=TMPDIR)
+    -p, --results-path <dir> (default=TMPDIR)
         Path in which to create dataset.
-    --summary|-s
+    -s, --summary
         Only display summary.
-    --tree  [--depth|-L <int>]
+    --tree [-L|--depth <int>]
         Run the tree command on the resulting dataset and optionally provide a
         maximum depth to display.
-    --help|-h
+    -h, --help
         Print this usage output.
 EOF
 echo -e "\nINFO:"
@@ -644,7 +649,7 @@ if [ -z "$RESULTS_PATH_ROOT" ]; then
 else
     [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ] || RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
     if [ -d $RESULTS_PATH_ROOT ] && ! [ -w $RESULTS_PATH_ROOT ]; then
-        echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
+        echo "ERROR: insufficient privileges to write to $RESULTS_PATH_ROOT"
         exit 1
     fi
 fi
