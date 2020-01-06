@@ -692,18 +692,19 @@ if [ -z "$HOSTNAME" ]; then
     # get hostname
     HOSTNAME=`get_hostname`
 fi
-
-if $do_show_summary; then
-    $do_create_dataset && echo "Data source: ${DATA_SOURCE:-<host>}"
-    echo "Dataset root: $RESULTS_PATH_ROOT"
-    echo "Host: $HOSTNAME"
-fi
-
 RESULTS_PATH_HOST=$RESULTS_PATH_ROOT$HOSTNAME
 
-if [ -e "$RESULTS_PATH_HOST" ]; then
-    echo -e "\nWARNING: $RESULTS_PATH_HOST already exists! - skipping create"
-else
+if $do_show_summary; then
+    _source=${DATA_SOURCE:-<localhost>}
+    echo "Data source: ${DATA_SOURCE%/}"
+    echo "Data hostname: $HOSTNAME"
+    echo "Results root: ${RESULTS_PATH_ROOT%/}"
+    if [ -e "$RESULTS_PATH_HOST" ]; then
+        echo -e "NOTE: $RESULTS_PATH_HOST already exists - skipping create"
+    fi
+fi
+
+if ! [ -e "$RESULTS_PATH_HOST" ]; then
     # If we are going to be creating data then pre-load the caches
     $do_show_summary && echo -en "\nPre-loading caches..."
     $do_create_dataset && cache_preload
@@ -721,10 +722,19 @@ mkdir -p $RESULTS_PATH_HOST/linux/{namespaces,ports}
 $do_create_dataset && create_dataset
 
 # check for broken symlinks
-if ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
-    echo -e "\n================================================================================"
-    echo -e "WARNING: dataset contains broken links.\nExecute 'find $RESULTS_PATH_HOST -xtype l' to display them."
-    echo -e "================================================================================"
+if ! $do_show_summary && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
+cat << EOF
+
+================================================================================
+WARNING: dataset contains broken links!
+
+If running against live data this might be resolved by recreating the dataset
+otherwise it can be an indication of incorrectly configured ovs. To display
+broken links run:
+
+find $RESULTS_PATH_HOST -xtype l
+================================================================================
+EOF
 fi
 
 $do_show_summary && show_summary
