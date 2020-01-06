@@ -605,6 +605,18 @@ show_summary ()
         ls $RESULTS_PATH_HOST/ovs/bridges/$b/ports| wc -l
     done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
 
+    echo -e "\nOVS bridge flow tables:"
+    for b in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        echo -n "$b: "
+        ls $RESULTS_PATH_HOST/ovs/bridges/$b/flowinfo/tables| wc -l
+    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
+
+    echo -e "\nOVS bridge flow cookies:"
+    for b in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        echo -n "$b: "
+        ls $RESULTS_PATH_HOST/ovs/bridges/$b/flowinfo/cookies| wc -l
+    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
+
     num=`ls $RESULTS_PATH_HOST/ovs/vlans/ 2>/dev/null| wc -l`
     echo -e "\nOVS vlans:\n  $num"
 
