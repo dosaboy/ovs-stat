@@ -20,4 +20,4 @@ parts:
   ovs-stat:
     source: .
     plugin: dump
-    stage-packages: [coreutils, bsdmainutils, tree, openvswitch-switch, jq, libgtk3-nocsd0]
+    stage-packages: [coreutils, bsdmainutils, tree, openvswitch-switch, jq]
