@@ -703,13 +703,16 @@ fi
 if [ -z "$HOSTNAME" ]; then
     # get hostname
     HOSTNAME=`get_hostname`
+    if [ -z "$HOSTNAME" ]; then
+        echo "ERROR: unable to identify hostname - have all necessary snap interfaces been enabled?"
+        exit 1
+    fi
 fi
 RESULTS_PATH_HOST=$RESULTS_PATH_ROOT$HOSTNAME
 
 if $do_show_summary; then
-    _source=${DATA_SOURCE:-<localhost>}
-    echo "Data source: ${DATA_SOURCE%/}"
-    echo "Data hostname: $HOSTNAME"
+    _source=${DATA_SOURCE:-localhost}
+    echo "Data source: ${_source%/} (hostname=$HOSTNAME)"
     echo "Results root: ${RESULTS_PATH_ROOT%/}"
     if [ -e "$RESULTS_PATH_HOST" ]; then
         echo -e "NOTE: $RESULTS_PATH_HOST already exists - skipping create"
