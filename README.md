@@ -17,5 +17,5 @@ queries to be run against data from multiple hosts at once.
 
 ## Install
 
-See https://github.com/dosaboy/ovs-stat for installation and usage info.
+See https://snapcraft.io/ovs-stat for installation and usage info.
 
