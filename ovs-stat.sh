@@ -555,7 +555,7 @@ check_error ()
 
 create_dataset ()
 {
-    $do_show_summary && echo -en "\nCreating dataset"
+    $do_show_summary && echo -en "Creating dataset"
 
     # ordering is important!
     load_namespaces 2>$RESULTS_PATH_HOST/error.$$; check_error "namespaces"
@@ -661,7 +661,7 @@ if [ -z "$RESULTS_PATH_ROOT" ]; then
 else
     [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ] || RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
     if [ -d $RESULTS_PATH_ROOT ] && ! [ -w $RESULTS_PATH_ROOT ]; then
-        echo "ERROR: insufficient privileges to write to $RESULTS_PATH_ROOT"
+        echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
         exit 1
     fi
 fi
@@ -723,21 +723,24 @@ if ! [ -e "$RESULTS_PATH_HOST" ]; then
     # If we are going to be creating data then pre-load the caches
     $do_show_summary && echo -en "\nPre-loading caches..."
     $do_create_dataset && cache_preload
-    $do_show_summary && echo -n "done."
+    $do_show_summary && echo -en "done.\n"
 fi
 
-# top-level structure
-mkdir -p $RESULTS_PATH_HOST/ovs
-mkdir -p $RESULTS_PATH_HOST/linux
-# next-level
-mkdir -p $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans}
-mkdir -p $RESULTS_PATH_HOST/linux/{namespaces,ports}
-# the rest is created dynamically
+create_failed=false
+# create top-level structure and next-level, the rest is created dynamically
+for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
+     $RESULTS_PATH_HOST/linux/{namespaces,ports}; do
+    mkdir -p $path || create_failed=true
+    if $create_failed; then
+        echo "ERROR: unable to create directory $path - insufficient permissions?"
+        exit 1
+    fi
+done
 
 $do_create_dataset && create_dataset
 
 # check for broken symlinks
-if ! $do_show_summary && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
+if $do_show_summary && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
 cat << EOF
 
 ================================================================================
