@@ -14,6 +14,7 @@ do_show_dataset=false
 do_create_dataset=true
 do_delete_results=false
 do_show_summary=true
+do_show_neutron_errors=false
 compress_dataset=false
 archive_tag=
 tree_depth=
@@ -30,40 +31,83 @@ REG_REMOTE_GROUP=7
 
 usage ()
 {
-echo "USAGE: ovs-stat [OPTS] [datapath]"
-echo -e "\nOPTS:"
 cat << EOF
-    --compress [--archive-tag <tag>]
-        Create a tarball of the resulting dataset and optionally name it with a
-        provided tag.
+USAGE: ovs-stat [OPTIONS] [SOSREPORT]
+
+This tool can be used in different ways. The main use case is against a host
+running an Openvswitch switch whereby running with all defaults will generate a
+sysfs-style representation "dataset" of your switch in \$TMPDIR. You can then
+run your own searches against this data or use some of the builtin commands
+provided here. By default a dataset is not clobbered by subsequent runs.
+
+If you have a sosreport taken from a host running Openvswitch then you can also
+run this tool against that data and it will use that as input for the dataset.
+This is useful if, for example, you want to collect data from multiple hosts
+and query it all in one place.
+
+One interesting feature of this tool is that it can sometimes simplify
+identifying broken configuration such as flows or port config. This is by
+virtue of the fact that the dataset is comprised largely of bi-directional
+references between resources. If both ends don't point to each other you know
+something is probably up. As a result, when broken references are detected a
+warning message is displayed.
+
+OPTIONS:
+    --archive-tag <tag>
+        Name tag used with --compress.
+
+    --compress
+        Create a tarball of the resulting dataset and names it with a tag if
+        provided by --archive-tag.
+
     --delete
         Delete datastore once finished (i.e. on exit).
+
+    -h, --help
+        Print this usage output.
+
     --host
         Optionally provided hostname. This is used when you want to run commands
         like --tree against an existing dataset that contains data from
         multiple hosts.
+
     -j, --max-parallel-jobs
         Some tasks will run in parallel with a maxiumum of $MAX_PARALLEL_JOBS
         jobs. This options allows the maxium to be overriden.
+
+    -L|--depth <int>
+        Max directory depth to display when running the tree command (--tree).
+
     --overwrite, --force
         By default if the dataset path already exists it will be treated as
         readonly unless this option is provided in which case all data is wiped
         prior to creating the dataset.
+
+    -p, --results-path <dir>
+        Path in which to create dataset. If no path is provided, a temporary
+        directory is created in \$TMPDIR.
+
     -q, --quiet
         Do not display any debug or summary output.
-    -p, --results-path <dir> (default=TMPDIR)
-        Path in which to create dataset.
+
     -s, --summary
         Only display summary.
-    --tree [-L|--depth <int>]
-        Run the tree command on the resulting dataset and optionally provide a
-        maximum depth to display.
-    -h, --help
-        Print this usage output.
+
+    --show-neutron-errors
+        Display occurences that indicate issues when Openvswitch is being used
+        with Openstack Neutron.
+
+    --tree
+        Run the tree command on the resulting dataset. You can control the
+        depth of the tree displayed with --depth.
+
+SOSREPORT:
+    As opposed to running against a live Openvswitch switch, you can optionally
+    point ovs-stat to a sosreport containing ovs data i.e.
+    sos_commands/openvswitch must exist and contain a complete collection of
+    data from Openvswitch.
+
 EOF
-echo -e "\nINFO:"
-echo "    <datapath> defaults to / i.e. ovs running on local host"
-echo "    <dir> defaults to \$TMPDIR env variable if set otherwise /tmp"
 }
 
 while (($#)); do
@@ -103,6 +147,9 @@ while (($#)); do
         -s|--summary)
             do_create_dataset=false
             ;;
+        --show-neutron-errors)
+            do_show_neutron_errors=true
+            ;;
         --tree)
             do_show_dataset=true
             ;;
@@ -111,7 +158,7 @@ while (($#)); do
             exit 0
             ;;
         *)
-            [ -d "$1" ] || { echo "ERROR: data directory '$1' does not exist"; exit 1; }
+            [ -e "$1" ] || { echo "ERROR: datapath '$1' does not exist"; exit 1; }
             DATA_SOURCE=$1
             ;;
     esac
@@ -660,7 +707,7 @@ if [ -z "$RESULTS_PATH_ROOT" ]; then
     RESULTS_PATH_ROOT=${tmp_datastore}/
 else
     [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ] || RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
-    if [ -d $RESULTS_PATH_ROOT ] && ! [ -w $RESULTS_PATH_ROOT ]; then
+    if [ -e $RESULTS_PATH_ROOT ] && ! [ -w $RESULTS_PATH_ROOT ]; then
         echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
         exit 1
     fi
@@ -715,7 +762,9 @@ if $do_show_summary; then
     echo "Data source: ${_source%/} (hostname=$HOSTNAME)"
     echo "Results root: ${RESULTS_PATH_ROOT%/}"
     if [ -e "$RESULTS_PATH_HOST" ]; then
-        echo -e "NOTE: $RESULTS_PATH_HOST already exists - skipping create"
+        echo -e "Mode: read-only"
+    else
+        echo -e "Mode: creating"
     fi
 fi
 
@@ -751,8 +800,23 @@ otherwise it can be an indication of incorrectly configured ovs. To display
 broken links run:
 
 find $RESULTS_PATH_HOST -xtype l
+
 ================================================================================
 EOF
+do_show_summary=false
+fi
+
+if $do_show_neutron_errors; then
+    # look for "dead" vlan tagged ports
+    echo ""
+    if [ -d $RESULTS_PATH_HOST/ovs/vlans/4095 ]; then
+        echo -e "INFO: dataset contains neutron \"dead\" vlan tag 4095:"
+        tree --noreport $RESULTS_PATH_HOST/ovs/vlans/4095
+        echo ""
+    else
+        echo -e "No neutron errors found"
+    fi
+    do_show_summary=false
 fi
 
 $do_show_summary && show_summary
