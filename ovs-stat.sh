@@ -6,21 +6,25 @@
 #  - edward.hope-morley@canonical.com
 #  - opentastic@gmail.com
 #
-DATA_SOURCE=
+OVS_FS_DATA_SOURCE=
 RESULTS_PATH_ROOT=
 RESULTS_PATH_HOST=
-force=false
-do_show_dataset=false
-do_create_dataset=true
-do_delete_results=false
-do_show_summary=true
-do_show_neutron_errors=false
-compress_dataset=false
-archive_tag=
-tree_depth=
+ARCHIVE_TAG=
+TREE_DEPTH=
+FORCE=false
 MAX_PARALLEL_JOBS=32
-scratch_area=
+SCRATCH_AREA=`mktemp -d`
+TMP_DATASTORE=
 HOSTNAME=
+
+declare -A DO_ACTIONS=(
+    [SHOW_DATASET]=false
+    [CREATE_DATASET]=true
+    [DELETE_DATASET]=false
+    [SHOW_SUMMARY]=true
+    [SHOW_NEUTRON_ERRORS]=false
+    [COMPRESS_DATASET]=false
+)
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
 REG_PORT=5
@@ -113,18 +117,18 @@ EOF
 while (($#)); do
     case $1 in
         --archive-tag)
-            archive_tag="$2"
+            ARCHIVE_TAG="$2"
             shift
             ;;
         --delete)
-            do_delete_results=true
+            DO_ACTIONS[DELETE_DATASET]=true
             ;;
         -L|--depth)
-            tree_depth="$2"
+            TREE_DEPTH="$2"
             shift
             ;;
         --compress)
-            compress_dataset=true
+            DO_ACTIONS[COMPRESS_DATASET]=true
             ;;
         --host)
             HOSTNAME="$2"
@@ -135,31 +139,31 @@ while (($#)); do
             shift
             ;;
         --overwrite|--force)
-            force=true
+            FORCE=true
             ;;
         -q|--quiet)
-            do_show_summary=false
+            DO_ACTIONS[SHOW_SUMMARY]=false
             ;;
         -p|--results-path)
             RESULTS_PATH_ROOT="$2"
             shift
             ;;
         -s|--summary)
-            do_create_dataset=false
+            DO_ACTIONS[SHOW_SUMMARY]=true
             ;;
         --show-neutron-errors)
-            do_show_neutron_errors=true
+            DO_ACTIONS[SHOW_NEUTRON_ERRORS]=true
             ;;
         --tree)
-            do_show_dataset=true
+            DO_ACTIONS[SHOW_DATASET]=true
             ;;
         -h|--help)
             usage
             exit 0
             ;;
         *)
-            [ -e "$1" ] || { echo "ERROR: datapath '$1' does not exist"; exit 1; }
-            DATA_SOURCE=$1
+            [ -e "$1" ] || { echo "ERROR: path '$1' does not exist"; exit 1; }
+            OVS_FS_DATA_SOURCE=$1
             ;;
     esac
     shift
@@ -475,7 +479,7 @@ load_bridges_port_flows ()
         bridge_flows_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge
         mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
 
-        mod_dl_src_out=$scratch_area/mod_dl_src.$$.`date +%s`
+        mod_dl_src_out=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`
         grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_out
         if [ -s "$mod_dl_src_out" ]; then
             mkdir -p $mod_dl_src_root
@@ -602,43 +606,43 @@ check_error ()
 
 create_dataset ()
 {
-    $do_show_summary && echo -en "Creating dataset"
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "Creating dataset"
 
     # ordering is important!
     load_namespaces 2>$RESULTS_PATH_HOST/error.$$; check_error "namespaces"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_ovs_bridges 2>$RESULTS_PATH_HOST/error.$$; check_error "ovs bridges"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridges_flows 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge flows"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_ovs_bridges_ports 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge ports"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
 
     load_bridges_port_vlans 2>$RESULTS_PATH_HOST/error.$$; check_error "port vlans"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridges_flow_tables 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge flow tables"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridges_flow_vlans 2>$RESULTS_PATH_HOST/error.$$; check_error "flow vlans"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridges_port_ns_attach_info 2>$RESULTS_PATH_HOST/error.$$; check_error "port ns info"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
 
     load_bridges_port_macs 2>$RESULTS_PATH_HOST/error.$$; check_error "port macs"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
 
     # do this first so that we can use reg5 to identify port flows if it exists
     load_bridge_flow_regs 2>$RESULTS_PATH_HOST/error.$$; check_error "flow regs"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
     # these depend on everything else existing so wait till the rest is finished
     load_bridges_port_flows 2>$RESULTS_PATH_HOST/error.$$; check_error "port flows"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridge_conjunctive_flow_ids 2>$RESULTS_PATH_HOST/error.$$; check_error "conj_ids"
-    $do_show_summary && echo -n "."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
 
-    $do_show_summary && echo "done."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo "done."
 }
 
 show_summary ()
@@ -688,62 +692,81 @@ show_summary ()
 
 ## MAIN ##
 
-scratch_area=`mktemp -d`
-tmp_datastore=
+# Need this to stop it from running multiple times
+cleaned=false
 cleanup () {
+    $cleaned && return
     wait
-    if [ -d "$tmp_datastore" ] && $do_delete_results; then
-        echo -e "\nDeleting datastore at $tmp_datastore"
-        rm -rf $tmp_datastore
+    if [ -d "$TMP_DATASTORE" ] && ${DO_ACTIONS[DELETE_DATASET]}; then
+        echo -e "\nDeleting datastore at $TMP_DATASTORE"
+        rm -rf $TMP_DATASTORE
     fi
-    rm -rf $scratch_area
+    rm -rf $SCRATCH_AREA
     [ -e "$COMMAND_CACHE_PATH" ] && rm -rf $COMMAND_CACHE_PATH
-    $do_show_summary && echo -e "\nDone."
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -e "\nDone."
+    cleaned=true
+    exit
 }
 trap cleanup EXIT INT
 
+# Sanitise input
+((MAX_PARALLEL_JOBS >= 0)) || MAX_PARALLEL_JOBS=0
+
+# If no path was provided we will create one under $TMPDIR
 if [ -z "$RESULTS_PATH_ROOT" ]; then
-    tmp_datastore=`mktemp -d`
-    RESULTS_PATH_ROOT=${tmp_datastore}/
-else
-    [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ] || RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
-    if [ -e $RESULTS_PATH_ROOT ] && ! [ -w $RESULTS_PATH_ROOT ]; then
-        echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
-        exit 1
-    fi
+    TMP_DATASTORE=`mktemp -d`
+    RESULTS_PATH_ROOT=${TMP_DATASTORE}/
+elif ! [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ]; then
+    # Ensure trailing slash
+    RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
 fi
 
-if ((MAX_PARALLEL_JOBS < 0)); then
-    MAX_PARALLEL_JOBS=0
+# Ensure trailing slash
+if [ -n "$OVS_FS_DATA_SOURCE" ] && ! [ "${OVS_FS_DATA_SOURCE:(-1)}" = "/" ]; then
+    OVS_FS_DATA_SOURCE="${OVS_FS_DATA_SOURCE}/"
 fi
 
-if [ -n "$DATA_SOURCE" ]; then
-    # Add missing slash
-    [ "${DATA_SOURCE:(-1)}" = "/" ] || DATA_SOURCE="${DATA_SOURCE}/"
-fi
-
-if $do_create_dataset && [ -e "$RESULTS_PATH_ROOT" ] && \
-        [ -z "$tmp_datastore" ]; then
-    if ! $force; then
-        do_create_dataset=false
-        if [ -z "$HOSTNAME" ]; then
-            readarray -t hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
-            if ((${#hosts[@]}>1)); then
-                num=${#hosts[@]}
+# no fs data
+# Ensure results path is writeable if exists
+if ! ${DO_ACTIONS[CREATE_DATASET]} && ! [ -e $RESULTS_PATH_ROOT ]; then
+    echo "ERROR: no dataset found at $RESULTS_PATH_ROOT"
+elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
+        ! [ -w $RESULTS_PATH_ROOT ]; then
+    echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
+    exit 1
+elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
+        [ -z "$TMP_DATASTORE" ]; then
+    if $FORCE; then
+        echo "Deleting $RESULTS_PATH_ROOT"
+        rm -rf $RESULTS_PATH_ROOT
+    else
+        # switch to read-only
+        DO_ACTIONS[CREATE_DATASET]=false
+        readarray -t hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
+        if [ -n "$HOSTNAME" ]; then
+            if ! `echo "${hosts[@]}"| egrep "^$HOSTNAME$|\s$HOSTNAME$|^$HOSTNAME\s|\s$HOSTNAME\s"`; then
+                echo "ERROR: hostname '$HOSTNAME' not found in dataset"
+                exit 1
+            fi
+        else
+            num_hosts=${#hosts[@]}
+            if ((num_hosts>1)); then
                 echo "Multiple hosts found in $RESULTS_PATH_ROOT:"
-                for ((i=0;i<num;i++)); do
+                for ((i=0;i<num_hosts;i++)); do
                     echo "[${i}] ${hosts[$i]}"
                 done
-                echo -en "\nWhich would you like to use? [0-$((num-1))]"
+                echo -en "\nWhich would you like to use? [0-$((num_hosts-1))]"
                 read answer
                 echo ""
+                if ((answer>num_hosts)); then
+                    echo "ERROR: invalid host id $answer (allowed=0-$((num_hosts-1)))"
+                    exit 1
+                fi
                 HOSTNAME=${hosts[$answer]}
             else
                 HOSTNAME=${hosts[0]}
             fi
         fi
-    else
-        rm -rf $RESULTS_PATH_ROOT
     fi
 fi
 
@@ -757,22 +780,19 @@ if [ -z "$HOSTNAME" ]; then
 fi
 RESULTS_PATH_HOST=$RESULTS_PATH_ROOT$HOSTNAME
 
-if $do_show_summary; then
-    _source=${DATA_SOURCE:-localhost}
+if ${DO_ACTIONS[SHOW_SUMMARY]}; then
+    _source=${OVS_FS_DATA_SOURCE:-localhost}
     echo "Data source: ${_source%/} (hostname=$HOSTNAME)"
     echo "Results root: ${RESULTS_PATH_ROOT%/}"
-    if [ -e "$RESULTS_PATH_HOST" ]; then
-        echo -e "Mode: read-only"
-    else
-        echo -e "Mode: creating"
-    fi
+    ${DO_ACTIONS[CREATE_DATASET]} && read_only=false || read_only=true
+    echo -e "Read-only: $read_only"
 fi
 
 if ! [ -e "$RESULTS_PATH_HOST" ]; then
     # If we are going to be creating data then pre-load the caches
-    $do_show_summary && echo -en "\nPre-loading caches..."
-    $do_create_dataset && cache_preload
-    $do_show_summary && echo -en "done.\n"
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
+    ${DO_ACTIONS[CREATE_DATASET]} && cache_preload
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "done.\n"
 fi
 
 create_failed=false
@@ -786,10 +806,10 @@ for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
     fi
 done
 
-$do_create_dataset && create_dataset
+${DO_ACTIONS[CREATE_DATASET]} && create_dataset
 
 # check for broken symlinks
-if $do_show_summary && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
+if ${DO_ACTIONS[SHOW_SUMMARY]} && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
 cat << EOF
 
 ================================================================================
@@ -803,10 +823,10 @@ find $RESULTS_PATH_HOST -xtype l
 
 ================================================================================
 EOF
-do_show_summary=false
+DO_ACTIONS[SHOW_SUMMARY]=false
 fi
 
-if $do_show_neutron_errors; then
+if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
     # look for "dead" vlan tagged ports
     echo ""
     if [ -d $RESULTS_PATH_HOST/ovs/vlans/4095 ]; then
@@ -816,23 +836,23 @@ if $do_show_neutron_errors; then
     else
         echo -e "No neutron errors found"
     fi
-    do_show_summary=false
+    DO_ACTIONS[SHOW_SUMMARY]=false
 fi
 
-$do_show_summary && show_summary
+${DO_ACTIONS[SHOW_SUMMARY]} && show_summary
 
-if $do_show_dataset; then
+if ${DO_ACTIONS[SHOW_DATASET]}; then
     echo -e "\nDataset:"
     args=""
-    if [ -n "$tree_depth" ]; then
-        args+="-L $tree_depth"
+    if [ -n "$TREE_DEPTH" ]; then
+        args+="-L $TREE_DEPTH"
     fi
     tree $args $RESULTS_PATH_HOST
 fi
 
-if $compress_dataset; then
+if ${DO_ACTIONS[COMPRESS_DATASET]}; then
     target=ovs-stat-${HOSTNAME}
-    [ -n "$archive_tag" ] && target+="-$archive_tag"
+    [ -n "$ARCHIVE_TAG" ] && target+="-$ARCHIVE_TAG"
     target+="-`date +%d%m%y.%s`.tgz"
     # snap running as root won't have access to non-root $HOME
     tar_root=`pwd`

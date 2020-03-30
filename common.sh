@@ -33,7 +33,7 @@ get_bridge_of_version ()
 
 get_ps ()
 {
-    sos=${DATA_SOURCE}ps
+    sos=${OVS_FS_DATA_SOURCE}ps
     if [ -r "$sos" ]; then
         cat $sos
         return
@@ -51,7 +51,7 @@ get_ps ()
 
 get_hostname ()
 {
-    sos=${DATA_SOURCE}hostname
+    sos=${OVS_FS_DATA_SOURCE}hostname
     if [ -r "$sos" ]; then
         cat $sos
         return
@@ -62,8 +62,8 @@ get_hostname ()
 
 get_ip_addr_show ()
 {
-    sos=${DATA_SOURCE}sos_commands/networking/ip_-d_address
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_-d_address
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -80,8 +80,8 @@ get_ip_addr_show ()
 
 get_ip_link_show ()
 {
-    sos=${DATA_SOURCE}sos_commands/networking/ip_-s_-d_link
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_-s_-d_link
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -98,8 +98,8 @@ get_ip_link_show ()
 
 get_ip_netns ()
 {
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -117,8 +117,8 @@ get_ip_netns ()
 get_ns_ip_addr_show ()
 {
     ns="$1"
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_ip_address_show
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_ip_address_show
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -129,8 +129,8 @@ get_ns_ip_addr_show ()
 get_ns_iptables ()
 {
     ns=$1
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_iptables-save
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_iptables-save
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -141,8 +141,8 @@ get_ns_iptables ()
 get_ns_ss ()
 {
     ns="$1"
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_ss_-peaonmi
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_ss_-peaonmi
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -153,8 +153,8 @@ get_ns_ss ()
 get_ns_netstat ()
 {
     ns="$1"
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_netstat_-W_-neopa
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns_exec_${ns}_netstat_-W_-neopa
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -165,8 +165,8 @@ get_ns_netstat ()
 get_ovs_ofctl_dump_flows ()
 {
     bridge="$1"
-    sos=${DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_dump-flows_${bridge}
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_dump-flows_${bridge}
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -189,8 +189,8 @@ get_ovs_ofctl_dump_flows ()
 get_ovs_ofctl_show ()
 {
     bridge="$1"
-    sos=${DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_show_${bridge}
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_show_${bridge}
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -212,8 +212,8 @@ get_ovs_ofctl_show ()
 
 get_ovs_vsctl_show ()
 {
-    sos=${DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_-t_5_show
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_-t_5_show
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -231,8 +231,8 @@ get_ovs_vsctl_show ()
 get_ovs_appctl_fdbshow ()
 {
     bridge=$1
-    sos=${DATA_SOURCE}sos_commands/openvswitch/ovs-appctl_fdb.show_${bridge}
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-appctl_fdb.show_${bridge}
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -249,8 +249,8 @@ get_ovs_appctl_fdbshow ()
 
 get_ovsdb_client_list_dump ()
 {
-    sos=${DATA_SOURCE}sos_commands/openvswitch/ovsdb-client_-f_list_dump
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovsdb-client_-f_list_dump
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
@@ -268,7 +268,7 @@ get_ovsdb_client_list_dump ()
 get_ns_ip_addr_show_all ()
 {
     #NOTE: this is a bit of a hack to make sos version look the same as real
-    sos=${DATA_SOURCE}sos_commands/networking/ip_netns_exec_*_ip_address_show
+    sos=${OVS_FS_DATA_SOURCE}sos_commands/networking/ip_netns_exec_*_ip_address_show
     cache=$COMMAND_CACHE_PATH/cache.ipnetns_all_ip_addr_show
 
     tmp=`mktemp`
@@ -282,7 +282,7 @@ get_ns_ip_addr_show_all ()
 
     ((`cat $tmp`)) && return
 
-    if [ -r "${DATA_SOURCE}sos_commands" ]; then
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         readarray -t namespaces<<<"`get_ip_netns`"
         if ((${#namespaces[@]}>0)) && [ -n "${namespaces[0]}" ]; then
             for ns in "${namespaces[@]}"; do
