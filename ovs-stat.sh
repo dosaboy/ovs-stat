@@ -123,6 +123,9 @@ while (($#)); do
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
             ;;
+        --debug)
+            set -x
+            ;;
         -L|--depth)
             TREE_DEPTH="$2"
             shift

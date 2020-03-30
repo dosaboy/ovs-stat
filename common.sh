@@ -280,9 +280,10 @@ get_ns_ip_addr_show_all ()
       fi
     ) 200>$LOCKPATH
 
-    ((`cat $tmp`)) && return
-
-    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
+    if ((`cat $tmp`)); then
+        rm $tmp
+        return
+    elif [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         readarray -t namespaces<<<"`get_ip_netns`"
         if ((${#namespaces[@]}>0)) && [ -n "${namespaces[0]}" ]; then
             for ns in "${namespaces[@]}"; do
