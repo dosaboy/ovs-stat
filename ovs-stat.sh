@@ -22,6 +22,7 @@ declare -A DO_ACTIONS=(
     [CREATE_DATASET]=true
     [DELETE_DATASET]=false
     [SHOW_SUMMARY]=true
+    [QUIET]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
 )
@@ -145,6 +146,7 @@ while (($#)); do
             FORCE=true
             ;;
         -q|--quiet)
+            DO_ACTIONS[QUIET]=true
             DO_ACTIONS[SHOW_SUMMARY]=false
             ;;
         -p|--results-path)
@@ -701,7 +703,7 @@ cleanup () {
     $cleaned && return
     wait
     if [ -d "$TMP_DATASTORE" ] && ${DO_ACTIONS[DELETE_DATASET]}; then
-        echo -e "\nDeleting datastore at $TMP_DATASTORE"
+        ${DO_ACTIONS[QUIET]} || echo -e "\nDeleting datastore at $TMP_DATASTORE"
         rm -rf $TMP_DATASTORE
     fi
     rm -rf $SCRATCH_AREA
@@ -740,7 +742,7 @@ elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
 elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
         [ -z "$TMP_DATASTORE" ]; then
     if $FORCE; then
-        echo "Deleting $RESULTS_PATH_ROOT"
+        ${DO_ACTIONS[QUIET]} || echo "Deleting $RESULTS_PATH_ROOT"
         rm -rf $RESULTS_PATH_ROOT
     else
         # switch to read-only
