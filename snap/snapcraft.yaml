@@ -1,5 +1,5 @@
 name: ovs-stat 
-version: '1.0'
+version: '1.1'
 summary: Tool to create a sysfs-style representation of an Openvswitch switch.
 description:
     Analysing Openvswitch flow tables can be hard. This tool organises information from

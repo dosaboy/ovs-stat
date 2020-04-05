@@ -22,6 +22,7 @@ declare -A DO_ACTIONS=(
     [CREATE_DATASET]=true
     [DELETE_DATASET]=false
     [SHOW_SUMMARY]=true
+    [SHOW_FOOTER]=true
     [QUIET]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
@@ -161,6 +162,8 @@ while (($#)); do
             ;;
         --tree)
             DO_ACTIONS[SHOW_DATASET]=true
+            DO_ACTIONS[SHOW_SUMMARY]=false
+            DO_ACTIONS[SHOW_FOOTER]=false
             ;;
         -h|--help)
             usage
@@ -652,47 +655,34 @@ create_dataset ()
 
 show_summary ()
 {
-    num=`ls $RESULTS_PATH_HOST/ovs/ports 2>/dev/null| wc -l`
-    echo -e "\nOVS ports:\n  $num"
-
-    echo -e "\nOVS bridge ports:"
-    for b in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        echo -n "$b: "
-        ls $RESULTS_PATH_HOST/ovs/bridges/$b/ports| wc -l
-    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
-
-    echo -e "\nOVS bridge flow tables:"
-    for b in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        echo -n "$b: "
-        ls $RESULTS_PATH_HOST/ovs/bridges/$b/flowinfo/tables| wc -l
-    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
-
-    echo -e "\nOVS bridge flow cookies:"
-    for b in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        echo -n "$b: "
-        ls $RESULTS_PATH_HOST/ovs/bridges/$b/flowinfo/cookies| wc -l
-    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
-
-    num=`ls $RESULTS_PATH_HOST/ovs/vlans/ 2>/dev/null| wc -l`
-    echo -e "\nOVS vlans:\n  $num"
-
-    echo -e "\nTagged ports:"
+    summary=$SCRATCH_AREA/pretty_summary
+    echo -e "\nSummary:"
+    (
+    echo "| Bridge | Tables | Cookies | Registers | Ports | ->tagged | ->namespaced | ->veth-peers | Vlans |"
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        num=`ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l`
-        echo "$bridge: $num"
-    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
+        echo -n "| $bridge "
+        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables 2>/dev/null| wc -l` "
+        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies 2>/dev/null| wc -l` "
+        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l` "
+        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports 2>/dev/null| wc -l` "
+        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l` "
+        readarray -t _ns<<<"`readlink -f $RESULTS_PATH_HOST/ovs/ports/*/namespace| sort -u`"
+        echo -n "| `for ns in ${_ns[@]}; do readlink -f $ns/*/*/bridge; done| grep $bridge| wc -l` "
+        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/hostnet/veth_peer 2>/dev/null| wc -l` "
+        echo -n "| `readlink -f $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| sort -u| wc -l` "
+        echo "|"
+    done
+    ) | column -t > ${summary}.tmp
 
-    num=`ls $RESULTS_PATH_HOST/linux/namespaces/ 2>/dev/null| wc -l`
-    echo -e "\nLinux namespaces with ovs ports associated (incl. veth pairs):\n  $num"
+    len=`head -n 1 ${summary}.tmp| wc -c`
+    echo -n "+" >> $summary; i=$((len-2)); \
+    while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
+    head -n 1 ${summary}.tmp >> $summary
+    echo -n "+" >> $summary; i=$((len-2)); while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
+    tail +2 ${summary}.tmp| sort -hk1 >> $summary
+    echo -n "+" >> $summary; i=$((len-2)); while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
 
-    num=`ls -d $RESULTS_PATH_HOST/ovs/ports/*/hostnet/veth_peer 2>/dev/null| wc -l`
-    echo -e "\nOVS ports with namespaced veth peers:\n  $num"
-
-    echo -e "\nNeutron flow registers used:"
-    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        num=`ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l`
-        echo "$bridge: $num"
-    done | sort -rnk 2| column -t| sed -r 's/^\s*/  /g'
+    cat $summary
 }
 
 ## MAIN ##
@@ -847,7 +837,6 @@ fi
 ${DO_ACTIONS[SHOW_SUMMARY]} && show_summary
 
 if ${DO_ACTIONS[SHOW_DATASET]}; then
-    echo -e "\nDataset:"
     args=""
     if [ -n "$TREE_DEPTH" ]; then
         args+="-L $TREE_DEPTH"
@@ -871,4 +860,11 @@ if ${DO_ACTIONS[COMPRESS_DATASET]}; then
     echo -e "\nCompressing to $tar_root$target"
     tar -czf $tar_root$target -C `dirname $RESULTS_PATH_HOST` $HOSTNAME
 fi
+
+show_footer ()
+{
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -ne "\nINFO: see --help for more display options"
+}
+
+${DO_ACTIONS[SHOW_FOOTER]} && show_footer
 
