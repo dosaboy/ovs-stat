@@ -739,7 +739,7 @@ elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
         DO_ACTIONS[CREATE_DATASET]=false
         readarray -t hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
         if [ -n "$HOSTNAME" ]; then
-            if ! `echo "${hosts[@]}"| egrep "^$HOSTNAME$|\s$HOSTNAME$|^$HOSTNAME\s|\s$HOSTNAME\s"`; then
+            if ! `echo "${hosts[@]}"| egrep -q "^$HOSTNAME$|\s$HOSTNAME$|^$HOSTNAME\s|\s$HOSTNAME\s"`; then
                 echo "ERROR: hostname '$HOSTNAME' not found in dataset"
                 exit 1
             fi
@@ -823,12 +823,37 @@ fi
 
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
     # look for "dead" vlan tagged ports
-    echo ""
+    echo -e "\nSearching for errors related to Openstack Neutron usage of Openvswitch...\n"
+    errors_found=false
     if [ -d $RESULTS_PATH_HOST/ovs/vlans/4095 ]; then
+        errors_found=true
         echo -e "INFO: dataset contains neutron \"dead\" vlan tag 4095:"
         tree --noreport $RESULTS_PATH_HOST/ovs/vlans/4095
         echo ""
-    else
+    fi
+
+    declare -A cookie_count=()
+    for bridge in `ls -1 $RESULTS_PATH_HOST/ovs/bridges`; do
+        c=`ls -1 $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies| wc -l`
+        ((c<2)) || cookie_count[$bridge]=$c
+    done
+
+    if ((${#cookie_count[@]})); then
+        errors_found=true
+cat << EOF
+INFO: the following bridges have more than one cookie. Depending on which
+neutron plugin you are using this may or may not be a problem i.e. if you are
+using the openvswitch ML2 plugin there is only supposed to be one cookie per
+bridge but if you are using the OVN plugin there will be many cookies.
+EOF
+
+        for bridge in ${!cookie_count[@]}; do
+            echo -e "\n$bridge (${cookie_count[$bridge]}) - run the following to see full list of cookies:\n\n  ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies/*"
+        done
+        echo ""
+    fi
+
+    if ! $errors_found; then
         echo -e "No neutron errors found"
     fi
     DO_ACTIONS[SHOW_SUMMARY]=false
