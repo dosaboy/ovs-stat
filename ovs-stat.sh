@@ -803,24 +803,6 @@ done
 
 ${DO_ACTIONS[CREATE_DATASET]} && create_dataset
 
-# check for broken symlinks
-if ${DO_ACTIONS[SHOW_SUMMARY]} && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
-cat << EOF
-
-================================================================================
-WARNING: dataset contains broken links!
-
-If running against live data this might be resolved by recreating the dataset
-otherwise it can be an indication of incorrectly configured ovs. To display
-broken links run:
-
-find $RESULTS_PATH_HOST -xtype l
-
-================================================================================
-EOF
-DO_ACTIONS[SHOW_SUMMARY]=false
-fi
-
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
     # look for "dead" vlan tagged ports
     echo -e "\nSearching for errors related to Openstack Neutron usage of Openvswitch...\n"
@@ -860,6 +842,23 @@ EOF
 fi
 
 ${DO_ACTIONS[SHOW_SUMMARY]} && show_summary
+
+# check for broken symlinks
+if ! ${DO_ACTIONS[QUIET]} && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
+cat << EOF
+
+================================================================================
+WARNING: dataset contains broken links!
+
+If running against live data this might be resolved by recreating the dataset
+otherwise it can be an indication of incorrectly configured ovs. To display
+broken links run:
+
+find $RESULTS_PATH_HOST -xtype l
+
+================================================================================
+EOF
+fi
 
 if ${DO_ACTIONS[SHOW_DATASET]}; then
     args=""
