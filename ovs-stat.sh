@@ -402,7 +402,7 @@ load_bridges_flows ()
         cookies_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies
         mkdir -p $cookies_path
         for c in ${cookies[@]}; do
-            touch $cookies_path/$c
+            grep "cookie=0x$c," $flows_path > $cookies_path/$c
         done
         sed -r -e 's/cookie=[[:alnum:]]+,\s+//g' \
                   -e 's/duration=[[:digit:]\.]+s,\s+//g' \
