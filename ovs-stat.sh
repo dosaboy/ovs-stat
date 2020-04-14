@@ -685,6 +685,23 @@ show_summary ()
     cat $summary
 }
 
+ensure_interfaces ()
+{
+    # check network-control
+    get_ip_netns &>/dev/null
+    if (($?)); then
+        echo "ERROR: unable to retreive network information - have you done 'snap connnect ovs-stat:network-control'?"
+        exit 1
+    fi
+
+    # check openvswitch
+    get_ovs_vsctl_show &>/dev/null
+    if (($?)); then
+        echo "ERROR: unable to retreive openvswitch information - have you done 'snap connnect ovs-stat:openvswitch'?"
+        exit 1
+    fi
+}
+
 ## MAIN ##
 
 # Need this to stop it from running multiple times
@@ -783,13 +800,6 @@ if ${DO_ACTIONS[SHOW_SUMMARY]}; then
     echo -e "Read-only: $read_only"
 fi
 
-if ! [ -e "$RESULTS_PATH_HOST" ]; then
-    # If we are going to be creating data then pre-load the caches
-    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
-    ${DO_ACTIONS[CREATE_DATASET]} && cache_preload
-    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "done.\n"
-fi
-
 create_failed=false
 # create top-level structure and next-level, the rest is created dynamically
 for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
@@ -801,7 +811,18 @@ for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
     fi
 done
 
-${DO_ACTIONS[CREATE_DATASET]} && create_dataset
+if ${DO_ACTIONS[CREATE_DATASET]}; then
+    # first check we have what we need
+    ensure_interfaces
+
+    # then pre-load the caches
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
+    ${DO_ACTIONS[CREATE_DATASET]} && cache_preload
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "done.\n"
+
+    # then go!
+    create_dataset
+fi
 
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
     # look for "dead" vlan tagged ports
