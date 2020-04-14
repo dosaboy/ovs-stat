@@ -800,20 +800,19 @@ if ${DO_ACTIONS[SHOW_SUMMARY]}; then
     echo -e "Read-only: $read_only"
 fi
 
-create_failed=false
-# create top-level structure and next-level, the rest is created dynamically
-for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
-     $RESULTS_PATH_HOST/linux/{namespaces,ports}; do
-    mkdir -p $path || create_failed=true
-    if $create_failed; then
-        echo "ERROR: unable to create directory $path - insufficient permissions?"
-        exit 1
-    fi
-done
-
 if ${DO_ACTIONS[CREATE_DATASET]}; then
     # first check we have what we need
     ensure_interfaces
+
+    # create top-level structure and next-level, the rest is created dynamically
+    for path in $RESULTS_PATH_HOST $RESULTS_PATH_HOST/ovs/{bridges,ports,vlans} \
+         $RESULTS_PATH_HOST/linux/{namespaces,ports}; do
+        mkdir -p $path
+        if (($?)); then
+            echo "ERROR: unable to create directory $path - insufficient permissions?"
+            exit 1
+        fi
+    done
 
     # then pre-load the caches
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
