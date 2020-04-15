@@ -483,10 +483,10 @@ load_bridges_port_flows ()
             job_wait $((++current_port_jobs)) && wait
         done
 
-        # this is what neutron uses to modify src mac for dvr
         bridge_flows_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge
-        mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
 
+        # this is what neutron uses to modify src mac for dvr
+        mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
         mod_dl_src_out=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`
         grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_out
         if [ -s "$mod_dl_src_out" ]; then
@@ -523,7 +523,20 @@ load_bridges_port_flows ()
             done < $mod_dl_src_out
         fi
         wait
-    done    
+
+        # collect flows corresponding to nw_src addresses
+        nw_src_root=$bridge_flows_root/flowinfo/nw_src
+        nw_src_out=$SCRATCH_AREA/nw_src.$$.`date +%s`
+        grep "nw_src" $bridge_flows_root/flows > $nw_src_out.tmp
+        if [ -s "$nw_src_out.tmp" ]; then
+            sed -r 's/.+nw_src=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $nw_src_out.tmp| sort -u > $nw_src_out
+            mkdir -p $nw_src_root
+            while read nw_src_addr; do
+                egrep "nw_src=${nw_src_addr}(/[0-9]+)?" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
+            done < $nw_src_out
+        fi
+        wait
+    done
 }
 
 # used by neutron openvswitch firewall driver
