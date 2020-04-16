@@ -372,3 +372,27 @@ get_ns_ip_addr_show_all ()
     ) 200>$LOCKPATH
     return `cat $rc`
 }
+
+show_conntrack_zone ()
+{
+    local zone="$1"
+    local sos=
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
+        # NOTE: sos not supported yet
+        return
+    fi
+
+    local cache=$COMMAND_CACHE_PATH/cache.conntrack_show_zone_$zone
+    local rc=${cache}.rc
+    ( flock -e 200
+      echo 0 > $rc
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          conntrack -L -w $zone > $cache
+          echo $? > $rc
+          cat $cache
+      fi
+    ) 200>$LOCKPATH
+    return `cat $rc`
+}

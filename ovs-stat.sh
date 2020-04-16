@@ -661,6 +661,18 @@ get_ovs_bridge_ports ()
         xargs -l basename
 }
 
+get_vlan_conntrack_zone_info ()
+{
+    conntrack_root=$RESULTS_PATH_HOST/linux/conntrack
+    mkdir -p $conntrack_root
+    mkdir -p $conntrack_root/zones
+    for vlan in `ls $RESULTS_PATH_HOST/ovs/vlans/`; do
+        mkdir -p $conntrack_root/zones/$vlan
+        ln -s ../../../../ovs/vlans/$vlan $conntrack_root/zones/$vlan/ovs
+        show_conntrack_zone $vlan > $conntrack_root/zones/$vlan/entries
+    done
+}
+
 check_error ()
 {
     if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
@@ -706,6 +718,10 @@ create_dataset ()
     load_bridge_conjunctive_flow_ids 2>$RESULTS_PATH_HOST/error.$$; check_error "conj_ids"
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
+
+    # TODO: confined snaps cant do conntrack yet it seems
+    #get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
+    #${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
 
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo "done."
 }
