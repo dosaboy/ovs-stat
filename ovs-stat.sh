@@ -538,16 +538,47 @@ load_bridges_port_flows ()
         wait
 
         # collect flows corresponding to nw_src addresses
+        {
         nw_src_root=$bridge_flows_root/flowinfo/nw_src
         nw_src_out=$SCRATCH_AREA/nw_src.$$.`date +%s`
         grep "nw_src" $bridge_flows_root/flows > $nw_src_out.tmp
+        mkdir -p $nw_src_root
         if [ -s "$nw_src_out.tmp" ]; then
             sed -r 's/.+nw_src=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $nw_src_out.tmp| sort -u > $nw_src_out
-            mkdir -p $nw_src_root
             while read nw_src_addr; do
                 egrep "nw_src=${nw_src_addr}(/[0-9]+)?" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
             done < $nw_src_out
         fi
+        } &
+
+        {
+        # collect flows corresponding to dl_dst addresses
+        dl_dst_root=$bridge_flows_root/flowinfo/dl_dst
+        dl_dst_out=$SCRATCH_AREA/dl_dst.$$.`date +%s`
+        grep "dl_dst" $bridge_flows_root/flows > $dl_dst_out.tmp
+        mkdir -p $dl_dst_root
+        if [ -s "$dl_dst_out.tmp" ]; then
+            sed -r 's/.+dl_dst=([[:alnum:]\:]+).+/\1/g;t;d' $dl_dst_out.tmp| sort -u > $dl_dst_out
+            while read dl_dst_addr; do
+                egrep "dl_dst=${dl_dst_addr}" $bridge_flows_root/flows > $dl_dst_root/$dl_dst_addr
+            done < $dl_dst_out
+        fi
+        } &
+
+        {
+        # collect flows corresponding to dl_src addresses
+        dl_src_root=$bridge_flows_root/flowinfo/dl_src
+        dl_src_out=$SCRATCH_AREA/dl_src.$$.`date +%s`
+        grep "dl_src" $bridge_flows_root/flows > $dl_src_out.tmp
+        mkdir -p $dl_src_root
+        if [ -s "$dl_src_out.tmp" ]; then
+            sed -r 's/.+dl_src=([[:alnum:]\:]+).+/\1/g;t;d' $dl_src_out.tmp| sort -u > $dl_src_out
+            while read dl_src_addr; do
+                egrep "dl_src=${dl_src_addr}" $bridge_flows_root/flows > $dl_src_root/$dl_src_addr
+            done < $dl_src_out
+        fi
+        } &
+
         wait
     done
 }
