@@ -719,7 +719,7 @@ create_dataset ()
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
 
-    # TODO: confined snaps cant do conntrack yet it seems
+    # TODO: confined snaps cant do conntrack yet it seems (see https://pad.lv/1873363)
     #get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
     #${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
 

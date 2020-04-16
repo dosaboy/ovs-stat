@@ -389,7 +389,7 @@ show_conntrack_zone ()
       if [ -r "$cache" ]; then
           cat $cache
       else
-          conntrack -L -w $zone > $cache
+          ovs-appctl dpctl/dump-conntrack zone=$zone > $cache
           echo $? > $rc
           cat $cache
       fi
