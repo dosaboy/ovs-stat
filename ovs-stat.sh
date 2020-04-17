@@ -220,6 +220,13 @@ load_ovs_bridges_ports()
     # loads all ports on all bridges
     # :requires: load_ovs_bridges
 
+    # NOTE: if a non-existant port is attached to a bridge it will show in
+    #       ovs-vsctl but not ovs-ofctl. We use the latter here so if port is
+    #       missing from the dataset it is because it could not be found by
+    #       ovs.
+    # TODO: should x-ref with ovs-vsctl list-ports <bridge> so that we have a
+    #       way to alert.
+
     current_jobs=0
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
@@ -548,6 +555,20 @@ load_bridges_port_flows ()
             while read nw_src_addr; do
                 egrep "nw_src=${nw_src_addr}(/[0-9]+)?" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
             done < $nw_src_out
+        fi
+        } &
+
+        {
+        # collect flows corresponding to arp_spa addresses
+        arp_spa_root=$bridge_flows_root/flowinfo/arp_spa
+        arp_spa_out=$SCRATCH_AREA/arp_spa.$$.`date +%s`
+        grep "arp_spa" $bridge_flows_root/flows > $arp_spa_out.tmp
+        mkdir -p $arp_spa_root
+        if [ -s "$arp_spa_out.tmp" ]; then
+            sed -r 's/.+arp_spa=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $arp_spa_out.tmp| sort -u > $arp_spa_out
+            while read arp_spa_addr; do
+                egrep "arp_spa=${arp_spa_addr}(/[0-9]+)?" $bridge_flows_root/flows > $arp_spa_root/$arp_spa_addr
+            done < $arp_spa_out
         fi
         } &
 
