@@ -373,8 +373,9 @@ get_ns_ip_addr_show_all ()
     return `cat $rc`
 }
 
-show_conntrack_zone ()
+get_ovs_appctl_dump_conntrack_zone ()
 {
+    # NOTE: this needs https://pad.lv/1873363 in order to work.
     local zone="$1"
     local sos=
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
@@ -382,7 +383,7 @@ show_conntrack_zone ()
         return
     fi
 
-    local cache=$COMMAND_CACHE_PATH/cache.conntrack_show_zone_$zone
+    local cache=$COMMAND_CACHE_PATH/cache.ovs_appctl_dump_conntrack_zone_$zone
     local rc=${cache}.rc
     ( flock -e 200
       echo 0 > $rc

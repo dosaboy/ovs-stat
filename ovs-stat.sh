@@ -39,6 +39,7 @@ declare -A DO_ACTIONS=(
     [QUIET]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
+    [CONNTRACK]=false
 )
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
@@ -120,6 +121,11 @@ OPTIONS:
         Run the tree command on the resulting dataset. You can control the
         depth of the tree displayed with --depth.
 
+EXPERIMENTAL OPTIONS:
+
+    --conntrack
+        Include conntrack information in the dataset (requires snapd with https://pad.lv/1873363).
+
 SOSREPORT:
     As opposed to running against a live Openvswitch switch, you can optionally
     point ovs-stat to a sosreport containing ovs data i.e.
@@ -134,6 +140,9 @@ while (($#)); do
         --archive-tag)
             ARCHIVE_TAG="$2"
             shift
+            ;;
+        --conntrack)
+            DO_ACTIONS[CONNTRACK]=true
             ;;
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
@@ -684,13 +693,12 @@ get_ovs_bridge_ports ()
 
 get_vlan_conntrack_zone_info ()
 {
-    conntrack_root=$RESULTS_PATH_HOST/linux/conntrack
-    mkdir -p $conntrack_root
+    conntrack_root=$RESULTS_PATH_HOST/ovs/conntrack
     mkdir -p $conntrack_root/zones
-    for vlan in `ls $RESULTS_PATH_HOST/ovs/vlans/`; do
+    # include id 0 to catch unzoned
+    for vlan in 0 `ls $RESULTS_PATH_HOST/ovs/vlans/`; do
         mkdir -p $conntrack_root/zones/$vlan
-        ln -s ../../../../ovs/vlans/$vlan $conntrack_root/zones/$vlan/ovs
-        show_conntrack_zone $vlan > $conntrack_root/zones/$vlan/entries
+        get_ovs_appctl_dump_conntrack_zone $vlan > $conntrack_root/zones/$vlan/entries
     done
 }
 
@@ -740,9 +748,11 @@ create_dataset ()
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     wait
 
-    # TODO: confined snaps cant do conntrack yet it seems (see https://pad.lv/1873363)
-    #get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
-    #${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
+    # NOTE: requires snapd with https://pad.lv/1873363
+    if ${DO_ACTIONS[CONNTRACK]}; then
+        get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
+        ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
+    fi
 
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo "done."
 }
