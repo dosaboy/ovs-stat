@@ -760,20 +760,20 @@ create_dataset ()
 show_summary ()
 {
     summary=$SCRATCH_AREA/pretty_summary
-    echo -e "\nSummary:"
     (
-    echo "| Bridge | Tables | Cookies | Registers | Ports | ->tagged | ->namespaced | ->veth-peers | Vlans |"
+    echo "| Bridge | Tables | Rules | Cookies | Registers | Ports | Vlans | Ports@vlan | Ports@ns | Ports@veth-peer |"
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         echo -n "| $bridge "
         echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables 2>/dev/null| wc -l` "
+        echo -n "| `wc -l $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows 2>/dev/null| awk '{print $1}'` "
         echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies 2>/dev/null| wc -l` "
         echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l` "
         echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports 2>/dev/null| wc -l` "
+        echo -n "| `readlink -f $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| sort -u| wc -l` "
         echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l` "
         readarray -t _ns<<<"`readlink -f $RESULTS_PATH_HOST/ovs/ports/*/namespace| sort -u`"
         echo -n "| `for ns in ${_ns[@]}; do readlink -f $ns/*/*/bridge; done| grep $bridge| wc -l` "
         echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/hostnet/veth_peer 2>/dev/null| wc -l` "
-        echo -n "| `readlink -f $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| sort -u| wc -l` "
         echo "|"
     done
     ) | column -t > ${summary}.tmp
@@ -786,6 +786,7 @@ show_summary ()
     tail +2 ${summary}.tmp| sort -hk1 >> $summary
     echo -n "+" >> $summary; i=$((len-2)); while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
 
+    echo -e "\nSummary:"
     cat $summary
 }
 
