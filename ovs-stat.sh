@@ -518,7 +518,8 @@ load_bridges_port_flows ()
         mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
         mod_dl_src_out=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`
         grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_out
-        if [ -s "$mod_dl_src_out" ]; then
+        num_ovs_ports=`ls $RESULTS_PATH_HOST/ovs/ports| wc -l`
+        if ((num_ovs_ports)) && [ -s "$mod_dl_src_out" ]; then
             mkdir -p $mod_dl_src_root
             current_bridge_jobs=0
             while read line; do
