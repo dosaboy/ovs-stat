@@ -967,7 +967,7 @@ EOF
     DO_ACTIONS[SHOW_SUMMARY]=false
 fi
 
-${DO_ACTIONS[SHOW_SUMMARY]} && show_summary
+${DO_ACTIONS[SHOW_SUMMARY]} && show_summary || true
 
 # check for broken symlinks
 if ! ${DO_ACTIONS[QUIET]} && ((`find $RESULTS_PATH_HOST -xtype l| wc -l`)); then
@@ -1016,5 +1016,5 @@ show_footer ()
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -ne "\nINFO: see --help for more display options"
 }
 
-${DO_ACTIONS[SHOW_FOOTER]} && show_footer
+${DO_ACTIONS[SHOW_FOOTER]} && show_footer || true
 
