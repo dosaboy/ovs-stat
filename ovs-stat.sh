@@ -40,6 +40,7 @@ declare -A DO_ACTIONS=(
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
     [CONNTRACK]=false
+    [X_CHECK_FLOW_VLANS]=false
 )
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
@@ -79,6 +80,12 @@ OPTIONS:
     --compress
         Create a tarball of the resulting dataset and names it with a tag if
         provided by --archive-tag.
+
+    --check-flow-vlans
+        By default we don't create links between vlans found on ports and
+        vlans found in flows since it is valid for a flow to be tagged for
+        egress when there is no port tagged with that vlan. Since we have no
+        way to determine this we leave this check as optional.
 
     --delete
         Delete datastore once finished (i.e. on exit).
@@ -143,6 +150,9 @@ while (($#)); do
             ;;
         --conntrack)
             DO_ACTIONS[CONNTRACK]=true
+            ;;
+        --check-flow-vlans)
+            DO_ACTIONS[X_CHECK_FLOW_VLANS]=true
             ;;
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
@@ -320,7 +330,10 @@ load_bridges_flow_vlans ()
             [ -n "$flow_vlans_root/$vlan/flows" ] || \
                 egrep "$grep_flow_vlan_regex2" $bridge_flow_vlans_out > $flow_vlans_root/$vlan/flows
 
-            ln -s ../../../../../vlans/$vlan $flow_vlans_root/$vlan/vlan
+            # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
+            if ${DO_ACTIONS[X_CHECK_FLOW_VLANS]}; then
+                ln -s ../../../../../vlans/$vlan $flow_vlans_root/$vlan/vlan
+            fi
         done
     done
 }
