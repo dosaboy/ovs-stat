@@ -246,7 +246,7 @@ load_ovs_bridges_ports()
     # TODO: should x-ref with ovs-vsctl list-ports <bridge> so that we have a
     #       way to alert.
 
-    current_jobs=0
+    local current_jobs=0
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
             sed -r 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/g;t;d'`"
@@ -344,13 +344,32 @@ load_bridges_port_macs ()
     # other means.
     # :requires: load_ovs_bridges_ports
 
+    local ovsdb_client_list_out=$SCRATCH_AREA/ovsdb_client_list.$$.`date +%s`
+    get_ovsdb_client_list_dump > $ovsdb_client_list_out
+
+    local current_jobs=0
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
+            {
             [ -e "$RESULTS_PATH_HOST/ovs/ports/$port/hwaddr" ] && continue
-            mac=`get_ovs_ofctl_show $bridge| \
+            local mac=`get_ovs_ofctl_show $bridge| \
                  sed -r "s/^\s+.+\($port\):\s+addr:(.+)/\1/g;t;d"`
             echo $mac > $RESULTS_PATH_HOST/ovs/ports/$port/hwaddr
+
+            # if the port is one of gre|vxlan then it will have tunnel endpoint address info in ovs
+            local section=`sed -rn "/^mac_in_use\s+:\s+\"$mac\".*/,/^type\s+:\s+.+/p;" $ovsdb_client_list_out`
+            `echo "$section"| tail -n 1| egrep -q "^type\s+:\s+(vxlan|gre)"` || continue
+            local options=`echo $section| grep options`
+            local type=`echo "$section"| sed -r 's/^type\s+:\s+(.+)\s*/\1/g;t;d'`
+            local local_ip=`echo $options| sed -r 's/.+local_ip="([[:digit:]\.]+)".+/\1/g'`
+            local remote_ip=`echo $options| sed -r 's/.+remote_ip="([[:digit:]\.]+)".+/\1/g'`
+            echo $type > $RESULTS_PATH_HOST/ovs/ports/$port/type
+            echo $local_ip > $RESULTS_PATH_HOST/ovs/ports/$port/local_ip
+            echo $remote_ip > $RESULTS_PATH_HOST/ovs/ports/$port/remote_ip
+            } &
+            job_wait $((++current_jobs)) && wait
         done
+        wait
     done
 }
 
@@ -371,7 +390,7 @@ load_bridges_port_ns_attach_info ()
     # a namespace and if it is using a veth pair to do so, get info on the
     # peer interface.
 
-    current_jobs=0
+    local current_jobs=0
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         for port in `get_ovs_bridge_ports $bridge`; do
             {
