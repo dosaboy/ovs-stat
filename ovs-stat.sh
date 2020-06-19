@@ -308,27 +308,30 @@ load_bridges_flow_vlans ()
     # loads all vlans contained in flows on bridge
     # :requires: load_ovs_bridges
 
-    local sed_flow_vlan_regex1='.+vlan=([[:digit:]]+)[,\s]+.+'
-    local grep_flow_vlan_regex1='.+vlan=$vlan[,\s]+.+'
+    local sed_flow_vlan_regex1='.+mod_vlan_vid:([[:digit:]]+)[, ]+.+'
+    local grep_flow_vlan_regex1='.+mod_vlan_vid:$vlan[, ]+.+'
 
-    local sed_flow_vlan_regex2='.+vid:([[:digit:]]+)[,\s]+.+'
-    local grep_flow_vlan_regex2='.+vid:$vlan[,\s]+.+'
+    local sed_flow_vlan_regex2='.+dl_vlan=([[:digit:]]+)[, ]+.+'
+    local grep_flow_vlan_regex2='.+dl_vlan=$vlan[, ]+.+'
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        bridge_flow_vlans_out=$SCRATCH_AREA/bridge_flow_vlans.$$.`date +%s`
-        get_ovs_ofctl_dump_flows $bridge > $bridge_flow_vlans_out
+        bridge_flows_out=$SCRATCH_AREA/bridge_flow_vlans.$$.`date +%s`
+        get_ovs_ofctl_dump_flows $bridge > $bridge_flows_out
         readarray -t vlans<<<"`sed -r -e "s/$sed_flow_vlan_regex1/\1/g" \
                                       -e "s/$sed_flow_vlan_regex2/\1/g;t;d" \
-                                      $bridge_flow_vlans_out | \
+                                      $bridge_flows_out | \
                                sort -n| uniq`"
         flow_vlans_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/vlans
         mkdir -p $flow_vlans_root
         ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || continue
         for vlan in ${vlans[@]}; do
             mkdir -p $flow_vlans_root/$vlan
-            egrep "$grep_flow_vlan_regex1" $bridge_flow_vlans_out > $flow_vlans_root/$vlan/flows
-            [ -n "$flow_vlans_root/$vlan/flows" ] || \
-                egrep "$grep_flow_vlan_regex2" $bridge_flow_vlans_out > $flow_vlans_root/$vlan/flows
+            local flows_out=$flow_vlans_root/$vlan/flows
+            exp1=`eval echo $grep_flow_vlan_regex1`
+            exp2=`eval echo $grep_flow_vlan_regex2`
+            egrep "$exp1" $bridge_flows_out > $flows_out
+            [ -s "$flows_out" ] || \
+                egrep "$exp2" $bridge_flows_out > $flows_out
 
             # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
             if ${DO_ACTIONS[X_CHECK_FLOW_VLANS]}; then
