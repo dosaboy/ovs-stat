@@ -516,7 +516,7 @@ load_bridges_port_flows ()
 
             mkdir -p $flows_root
             get_ovs_ofctl_dump_flows $bridge | \
-                egrep "in_port=$id[, ]+|output:$id[, ]+|reg5=0x${hexid}[ ,]+|$port_mac" > $flows_root/all
+                egrep "in_port=$id[, ]+|output:$id([, ]+|$)|reg5=0x${hexid}[ ,]+|$port_mac" > $flows_root/all
 
             mkdir -p $flows_root/by-table
             for table in `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables`; do
