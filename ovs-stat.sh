@@ -751,6 +751,41 @@ get_vlan_conntrack_zone_info ()
     done
 }
 
+load_neutron_l2pop_info ()
+{
+    local current_jobs=0
+    local -a tun_port_ids=()
+
+    readarray -t port_types<<<`find $RESULTS_PATH_HOST/ovs/ports -name type`
+    # if port has type then it is assumed to be a tunnel port
+    for type in ${port_types[@]}; do
+        tun_port_ids+=( `dirname $(echo $type)| xargs -l -I{} cat {}/id` )
+    done
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        while read line; do
+            (
+            local vlan=`echo $line| sed -rn 's/.+dl_vlan=([[:digit:]]+)\s+.+/\1/p'`
+            [ -n "$vlan" ] || exit
+            # skip if no output info
+            ((`echo "$line"| sed -r 's/output:/\n/g'| wc -l`>1)) || exit
+            for id in ${tun_port_ids[@]}; do
+                if `echo $line| egrep -q "output:$id(\$|,)"`; then
+                    local output=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/openstack/l2pop/vlans/$vlan/flood_ports
+                    [ -d "$output" ] || mkdir -p $output
+                    # NOTE: if this fails it implies there are > 1 flood flow
+                    #       for this vlan which is currently not expected or
+                    #       valid but that could change in the future.
+                    ln -s ../../../../../../ports/$id $output
+                fi
+            done
+            ) &
+            job_wait $((++current_jobs)) && wait
+        done < $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows.stripped
+        wait
+    done
+}
+
 check_error ()
 {
     if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
@@ -795,6 +830,9 @@ create_dataset ()
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
     load_bridge_conjunctive_flow_ids 2>$RESULTS_PATH_HOST/error.$$; check_error "conj_ids"
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
+    wait
+
+    load_neutron_l2pop_info 2>$RESULTS_PATH_HOST/error.$$; check_error "openstack l2pop info"
     wait
 
     # NOTE: requires snapd with https://pad.lv/1873363
