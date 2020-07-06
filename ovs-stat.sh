@@ -400,7 +400,7 @@ load_bridges_port_ns_attach_info ()
             port_suffix=${port##tap}
 
             # first try linux
-            ns_id=`get_ip_link_show| grep -A 1 $port| \
+            ns_id=`get_ip_link_show| grep -A 1 " $port:"| \
                        sed -r 's/.+link-netnsid ([[:digit:]]+)\s*.*/\1/g;t;d'`
             ns_name=
             if [ -n "$ns_id" ]; then
