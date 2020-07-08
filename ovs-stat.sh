@@ -1066,6 +1066,23 @@ if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
         echo ""
     fi
 
+    br_tun_flow_vlans_path=$RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/vlans
+    if ((`ls $br_tun_flow_vlans_path| wc -l`)); then
+        # there should be a one-to-one mapping between port vlans on br-int and br-tun mod_vlan flows
+        ls $br_tun_flow_vlans_path| sort -n > $SCRATCH_AREA/1
+        readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un > $SCRATCH_AREA/2
+        if ! `diff -q $SCRATCH_AREA/1 $SCRATCH_AREA/2 &>/dev/null`; then
+cat << EOF
+Mismatch detected between br-int port vlans and br-tun mod_vlan flows. To see the difference do:
+
+  ls $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/vlans| sort -n > br_tun_vlans
+  readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un > br_int_vlans
+  diff -y br_tun_vlans br_int_vlans
+EOF
+            errors_found=true
+        fi
+    fi
+
     declare -A cookie_count=()
     for bridge in `ls -1 $RESULTS_PATH_HOST/ovs/bridges`; do
         c=`ls -1 $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies| wc -l`
