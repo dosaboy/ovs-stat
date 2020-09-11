@@ -882,14 +882,14 @@ ensure_interfaces ()
     # check network-control
     get_ip_netns &>/dev/null
     if (($?)); then
-        echo "ERROR: unable to retreive network information - have you done 'snap connnect ovs-stat:network-control'?"
+        echo "ERROR: unable to retreive network information - have you done 'snap connect ovs-stat:network-control'?"
         exit 1
     fi
 
     # check openvswitch
     get_ovs_vsctl_show &>/dev/null
     if (($?)); then
-        echo "ERROR: unable to retreive openvswitch information - have you done 'snap connnect ovs-stat:openvswitch'?"
+        echo "ERROR: unable to retreive openvswitch information - have you done 'snap connect ovs-stat:openvswitch'?"
         exit 1
     fi
 }
