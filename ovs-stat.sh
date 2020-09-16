@@ -41,6 +41,7 @@ declare -A DO_ACTIONS=(
     [COMPRESS_DATASET]=false
     [CONNTRACK]=false
     [X_CHECK_FLOW_VLANS]=false
+    [ATTEMPT_VM_MAC_CONVERSION]=false
 )
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
@@ -124,6 +125,12 @@ OPTIONS:
         Display occurences that indicate issues when Openvswitch is being used
         with Openstack Neutron.
 
+    --attempt-vm-mac-conversion
+
+        When searching for a port using a mac address, if port not found also
+        try with mac prefix fa:16 converted to fe:16 in order to match local
+        tap device attached to qemu-kvm instance.
+
     --tree
         Run the tree command on the resulting dataset. You can control the
         depth of the tree displayed with --depth.
@@ -147,6 +154,9 @@ while (($#)); do
         --archive-tag)
             ARCHIVE_TAG="$2"
             shift
+            ;;
+        --attempt-vm-mac-conversion)
+            DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]=true
             ;;
         --conntrack)
             DO_ACTIONS[CONNTRACK]=true
@@ -502,6 +512,38 @@ load_bridges_flow_tables ()
     done
 }
 
+_organise_mod_dl_src_info ()
+{
+    local direction
+    local mod_dl_src_tmp_d=$1
+    local mod_dl_src_root=$2
+
+    for direction in ingress egress; do
+        if [ -d "$mod_dl_src_tmp_d/$direction" ]; then
+            if ((`ls $mod_dl_src_tmp_d/$direction| wc -l`)); then
+                for target_mac in `ls $mod_dl_src_tmp_d/$direction`; do
+                    # NOTE: in the case of ingress flow rule both macs are local (at least in openstack neutron case)
+                    for local_mac in `ls $mod_dl_src_tmp_d/$direction/$target_mac/`; do
+                        mkdir -p $mod_dl_src_root/$direction/$target_mac
+                        local_mac_path="`egrep -rl \"$local_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
+                        if [ -z "$local_mac_path" ] && ${DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]}; then
+                            vm_mac=`echo $local_mac| sed -r 's/^fa:16/fe:16/g'`
+                            local_mac_path="`egrep -rl \"$vm_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
+                        fi
+                        if [ -n "$local_mac_path" ]; then
+                            rel_path="`echo \"$local_mac_path\"| \
+                                sed -r "s,$RESULTS_PATH_HOST,../../../../../../..,g"`"
+                            ln -s $rel_path $mod_dl_src_root/$direction/$target_mac/$local_mac
+                        else
+                            touch $mod_dl_src_root/$direction/$target_mac/$local_mac
+                        fi
+                    done
+                done
+            fi
+        fi
+    done
+}
+
 load_bridges_port_flows ()
 {
     # loads flows for bridges ports and disects.
@@ -585,13 +627,13 @@ load_bridges_port_flows ()
                 fi
                 if [ -n "$orig_mac" ]; then
                     # ingress i.e. if dst==remote replace src dvr_mac with local
-                    local_mac=$mod_dl_src_mac
                     direction=ingress
-                    target_mac=$orig_mac
+                    local_mac=$orig_mac # in openstack neutron this will be the vm tap
+                    target_mac=$mod_dl_src_mac  # in openstack neutron this will be the qr interface
                 else
                     # egress i.e. if src==local set src=dvr_mac
-                    local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
                     direction=egress
+                    local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
                     target_mac=$mod_dl_src_mac
                 fi
                 mkdir -p $mod_dl_src_tmp_d/$direction/$target_mac/$local_mac
@@ -600,26 +642,7 @@ load_bridges_port_flows ()
             done < $mod_dl_src_tmp_d/flows
             wait
 
-            # organise results
-            for direction in ingress egress; do
-                if [ -d "$mod_dl_src_tmp_d/$direction" ]; then
-                    if ((`ls $mod_dl_src_tmp_d/$direction| wc -l`)); then
-                        for target_mac in `ls $mod_dl_src_tmp_d/$direction`; do
-                            for local_mac in `ls $mod_dl_src_tmp_d/$direction/$target_mac/`; do
-                                mkdir -p $mod_dl_src_root/$direction/$target_mac
-                                local_mac_path="`egrep -rl \"$local_mac\" $RESULTS_PATH_HOST/ovs/ports/*`"
-                                if [ -n "$local_mac_path" ]; then
-                                    rel_path="`echo \"$local_mac_path\"| \
-                                        sed -r "s,$RESULTS_PATH_HOST,../../../../../../..,g"`"
-                                    ln -s $rel_path $mod_dl_src_root/$direction/$target_mac/$local_mac
-                                else
-                                    touch $mod_dl_src_root/$direction/$target_mac/$local_mac
-                                fi
-                            done
-                        done
-                    fi
-                fi
-            done
+            _organise_mod_dl_src_info $mod_dl_src_tmp_d $mod_dl_src_root
         fi
 
         # collect flows corresponding to nw_src addresses
