@@ -505,6 +505,9 @@ load_bridges_flow_tables ()
 load_bridges_port_flows ()
 {
     # loads flows for bridges ports and disects.
+    local direction
+    local local_mac
+    local target_mac
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         current_port_jobs=0
@@ -564,12 +567,15 @@ load_bridges_port_flows ()
 
         # this is what neutron uses to modify src mac for dvr
         mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
-        mod_dl_src_out=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`
-        grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_out
+        mod_dl_src_tmp_d=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`/$bridge
+        mkdir -p $mod_dl_src_tmp_d
+        grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_tmp_d/flows
         num_ovs_ports=`ls $RESULTS_PATH_HOST/ovs/ports| wc -l`
-        if ((num_ovs_ports)) && [ -s "$mod_dl_src_out" ]; then
+        if ((num_ovs_ports)) && [ -s "$mod_dl_src_tmp_d/flows" ]; then
             mkdir -p $mod_dl_src_root
             current_bridge_jobs=0
+            mkdir -p $mod_dl_src_tmp_d/egress/tmp
+            mkdir -p $mod_dl_src_tmp_d/ingress/tmp
             while read line; do
                 {
                 mod_dl_src_mac=`echo "$line"| sed -r 's/.+mod_dl_src:([[:alnum:]\:]+).+/\1/g;t;d'`
@@ -580,27 +586,41 @@ load_bridges_port_flows ()
                 if [ -n "$orig_mac" ]; then
                     # ingress i.e. if dst==remote replace src dvr_mac with local
                     local_mac=$mod_dl_src_mac
-                    target_path=$mod_dl_src_root/ingress
+                    direction=ingress
                     target_mac=$orig_mac
                 else
                     # egress i.e. if src==local set src=dvr_mac
                     local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
-                    target_path=$mod_dl_src_root/egress
+                    direction=egress
                     target_mac=$mod_dl_src_mac
                 fi
-                mkdir -p $target_path
-                local_mac_path="`egrep -l '$local_mac' $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
-                if [ -n "$local_mac_path" ]; then
-                    rel_path="`echo "$local_mac_path"| sed -r "s,$RESULTS_PATH_HOST,../../../../../..,g"`"
-                    ln -s $rel_path $target_path/$target_mac
-                else
-                    echo "$local_mac" > $target_path/$target_mac
-                fi
+                mkdir -p $mod_dl_src_tmp_d/$direction/$target_mac/$local_mac
                 } &
                 job_wait $((++current_bridge_jobs)) && wait
-            done < $mod_dl_src_out
+            done < $mod_dl_src_tmp_d/flows
+            wait
+
+            # organise results
+            for direction in ingress egress; do
+                if [ -d "$mod_dl_src_tmp_d/$direction" ]; then
+                    if ((`ls $mod_dl_src_tmp_d/$direction| wc -l`)); then
+                        for target_mac in `ls $mod_dl_src_tmp_d/$direction`; do
+                            for local_mac in `ls $mod_dl_src_tmp_d/$direction/$target_mac/`; do
+                                mkdir -p $mod_dl_src_root/$direction/$target_mac
+                                local_mac_path="`egrep -rl \"$local_mac\" $RESULTS_PATH_HOST/ovs/ports/*`"
+                                if [ -n "$local_mac_path" ]; then
+                                    rel_path="`echo \"$local_mac_path\"| \
+                                        sed -r "s,$RESULTS_PATH_HOST,../../../../../../..,g"`"
+                                    ln -s $rel_path $mod_dl_src_root/$direction/$target_mac/$local_mac
+                                else
+                                    touch $mod_dl_src_root/$direction/$target_mac/$local_mac
+                                fi
+                            done
+                        done
+                    fi
+                fi
+            done
         fi
-        wait
 
         # collect flows corresponding to nw_src addresses
         {
