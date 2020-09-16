@@ -48,6 +48,7 @@ declare -A DO_ACTIONS=(
     [SHOW_SUMMARY]=true
     [SHOW_FOOTER]=true
     [QUIET]=false
+    [SHOW_NEUTRON_INFO]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
     [RUN_QUERY]=false
@@ -132,6 +133,9 @@ OPTIONS:
     -s, --summary
         Only display summary.
 
+    --show-neutron-info
+        Display information about Openstack Neutron resources.
+
     --show-neutron-errors
         Display occurences that indicate issues when Openvswitch is being used
         with Openstack Neutron.
@@ -212,6 +216,9 @@ while (($#)); do
             ;;
         --show-neutron-errors)
             DO_ACTIONS[SHOW_NEUTRON_ERRORS]=true
+            ;;
+        --show-neutron-info)
+            DO_ACTIONS[SHOW_NEUTRON_INFO]=true
             ;;
         --tree)
             DO_ACTIONS[SHOW_DATASET]=true
@@ -429,6 +436,36 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
 
     # then go!
     create_dataset
+fi
+
+if ${DO_ACTIONS[SHOW_NEUTRON_INFO]}; then
+    echo -e "\nSearching for information related to Openstack Neutron usage of Openvswitch...\n"
+
+    declare -A has_sub=()
+    declare -A no_sub=()
+    for port in `find $RESULTS_PATH_HOST/ovs/ports -name qr-\*`; do
+        mac=`cat $port/hwaddr`
+        data=$RESULTS_PATH_HOST/ovs/bridges/br-int/flowinfo/mod_dl_src/ingress
+        [ -d "$data" ] || continue
+        [ -d "$port/namespace/ports" ] || continue
+        if ! ((`find $data -name $mac| wc -l`)); then
+            no_sub[$port]=`basename $(readlink $port/namespace)`
+        else
+            has_sub[$port]=`basename $(readlink $port/namespace)`
+        fi
+    done
+
+    echo "DVR mac substitution info:"
+    echo "  router ports with mod_dl_src ingress (e.g. distributed):"
+    for port in ${!has_sub[@]}; do
+        echo "  - $port (${has_sub[$port]})"
+    done
+    echo "  router ports WITHOUT mod_dl_src ingress (e.g. centralised):"
+    for port in ${!no_sub[@]}; do
+        echo "  - $port (${no_sub[$port]})"
+    done
+
+    DO_ACTIONS[SHOW_SUMMARY]=false
 fi
 
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
