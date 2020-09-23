@@ -39,7 +39,6 @@ declare -A DO_ACTIONS=(
     [QUIET]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
-    [CONNTRACK]=false
     [X_CHECK_FLOW_VLANS]=false
     [ATTEMPT_VM_MAC_CONVERSION]=false
 )
@@ -135,11 +134,6 @@ OPTIONS:
         Run the tree command on the resulting dataset. You can control the
         depth of the tree displayed with --depth.
 
-EXPERIMENTAL OPTIONS:
-
-    --conntrack
-        Include conntrack information in the dataset (requires snapd with https://pad.lv/1873363).
-
 SOSREPORT:
     As opposed to running against a live Openvswitch switch, you can optionally
     point ovs-stat to a sosreport containing ovs data i.e.
@@ -157,9 +151,6 @@ while (($#)); do
             ;;
         --attempt-vm-mac-conversion)
             DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]=true
-            ;;
-        --conntrack)
-            DO_ACTIONS[CONNTRACK]=true
             ;;
         --check-flow-vlans)
             DO_ACTIONS[X_CHECK_FLOW_VLANS]=true
@@ -786,6 +777,11 @@ get_ovs_bridge_ports ()
 get_vlan_conntrack_zone_info ()
 {
     conntrack_root=$RESULTS_PATH_HOST/ovs/conntrack
+
+    # start with a test to see if we have permissions to get conntrack info
+    get_ovs_appctl_dump_conntrack_zone 0 &>/dev/null
+    (($?)) && return 0  # dont yield error since older snapd can't do this.
+
     mkdir -p $conntrack_root/zones
     # include id 0 to catch unzoned
     for vlan in 0 `ls $RESULTS_PATH_HOST/ovs/vlans/`; do
@@ -879,10 +875,8 @@ create_dataset ()
     wait
 
     # NOTE: requires snapd with https://pad.lv/1873363
-    if ${DO_ACTIONS[CONNTRACK]}; then
-        get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
-        ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
-    fi
+    get_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "conntrack zones"
+    ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
 
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo "done."
 }
@@ -1059,6 +1053,9 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
 fi
 
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
+    output=$SCRATCH_AREA/neutron_errors
+    mkdir -p $output
+
     # look for "dead" vlan tagged ports
     echo -e "\nSearching for errors related to Openstack Neutron usage of Openvswitch...\n"
     errors_found=false
@@ -1090,9 +1087,19 @@ EOF
         echo ""
     fi
 
+    if [ -d "$RESULTS_PATH_HOST/ovs/conntrack/zones" ]; then
+        grep "mark=1" $RESULTS_PATH_HOST/ovs/conntrack/zones/*/entries > $output/conntrack
+        if (($?==0)); then
+            errors_found=true
+            echo "Found conntrack entries that have a mark=1:"
+            cat $output/conntrack
+        fi
+    fi
+
     if ! $errors_found; then
         echo -e "No neutron errors found"
     fi
+
     DO_ACTIONS[SHOW_SUMMARY]=false
 fi
 

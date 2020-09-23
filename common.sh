@@ -380,7 +380,7 @@ get_ovs_appctl_dump_conntrack_zone ()
     local sos=
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         # NOTE: sos not supported yet
-        return
+        return 1
     fi
 
     local cache=$COMMAND_CACHE_PATH/cache.ovs_appctl_dump_conntrack_zone_$zone
