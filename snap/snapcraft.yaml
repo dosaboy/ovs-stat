@@ -15,9 +15,7 @@ environment:
 apps:
   ovs-stat:
     command: ovs-stat.sh
-    # leaving network-control for backwards-compatibility but it is not longer
-    # required now that we have network-observe.
-    plugs: [home, removable-media, network-control, network-observe, openvswitch]
+    plugs: [home, removable-media, network-control, openvswitch]
 parts:
   ovs-stat:
     source: .

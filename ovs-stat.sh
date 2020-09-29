@@ -916,10 +916,10 @@ show_summary ()
 
 ensure_interfaces ()
 {
-    # check network-observe
+    # check network-control
     get_ip_netns &>/dev/null
     if (($?)); then
-        echo "ERROR: unable to retreive network information - have you done 'snap connect ovs-stat:network-observe'?"
+        echo "ERROR: unable to retreive network information - have you done 'snap connect ovs-stat:network-control'?"
         exit 1
     fi
 
