@@ -1,0 +1,18 @@
+#!/bin/bash
+openstack.l2pop ()  # show layer2population floor ports for the provided vlan. if no vlan provided all vlans are shown.
+{
+    vlan=${1:-*}
+    if ! `ls $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$vlan &>/dev/null`; then
+        echo "INFO: no l2pop info found for local-vlan $vlan"
+        return
+    fi
+    [ "$vlan" = "*" ] || cat $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$vlan/flood_ports/*/remote_ip
+    [ "$vlan" = "*" ] || return
+    path=$RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans
+    for vlan in `find $path -maxdepth 1`; do
+        [ "$path" = "$vlan" ] && continue
+        echo -e "== vlan:`basename $vlan` =="
+        cat $vlan/flood_ports/*/remote_ip
+    done
+}
+

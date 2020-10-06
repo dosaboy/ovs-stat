@@ -29,6 +29,8 @@ MAX_PARALLEL_JOBS=32
 SCRATCH_AREA=`mktemp -d`
 TMP_DATASTORE=
 HOSTNAME=
+QUERY_STR=
+CWD=$(dirname `realpath $0`)
 
 declare -A DO_ACTIONS=(
     [SHOW_DATASET]=false
@@ -182,6 +184,13 @@ while (($#)); do
         -q|--quiet)
             DO_ACTIONS[QUIET]=true
             DO_ACTIONS[SHOW_SUMMARY]=false
+            ;;
+        --query)
+            # --quiet
+            DO_ACTIONS[QUIET]=true
+            DO_ACTIONS[SHOW_SUMMARY]=false
+            QUERY_STR="$2"  
+            shift
             ;;
         -p|--results-path)
             RESULTS_PATH_ROOT="$2"
@@ -1128,6 +1137,11 @@ if ${DO_ACTIONS[SHOW_DATASET]}; then
         args+="-L $TREE_DEPTH"
     fi
     tree $args $RESULTS_PATH_HOST
+fi
+
+if [ -n "$QUERY_STR" ]; then
+    echo -e "Query results:\n"
+    . $CWD/plugins/openstack $QUERY_STR
 fi
 
 if ${DO_ACTIONS[COMPRESS_DATASET]}; then

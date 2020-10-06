@@ -1,0 +1,87 @@
+#!/bin/bash
+openstack.local-vlans.info ()
+{
+    readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un    
+}
+openstack.local-vlans ()
+{
+    openstack.local-vlans.info
+}
+
+openstack.ports.list ()
+{
+    local vlan=${1:-""}
+
+    if [ -z "$vlan" ]; then
+         ls $RESULTS_PATH_HOST/ovs/ports
+    else
+        path=$RESULTS_PATH_HOST/ovs/vlans/$vlan
+        if ! [ -d "$path" ]; then
+            echo "INFO: vlan $vlan not found"
+            return
+        fi
+        echo -e "Ports with vlan id 7:"
+        ls $path/ports
+    fi
+}
+# default
+openstack.ports ()
+{
+    openstack.ports.list $1
+}
+
+
+openstack.port.info ()
+{
+    local id_key=$1  # ultimately could be name, mac etc
+    local vlan=
+    local mac=
+    local bridge="unknown"
+    local namespace=
+
+    # try by name first
+    name=$id_key
+    port="$RESULTS_PATH_HOST/ovs/ports/$name"
+    if ! [ -d "$port" ]; then
+        # then mac
+        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l grep -l $id_key`"
+        if [ -z "$result" ]; then
+            echo "INFO: port '$id_key' not found"
+            return
+        fi
+        port=`dirname $result`
+        name=`basename $port`
+    fi
+
+    mac=`cat $port/hwaddr`
+    if [ -e "$port/vlan" ]; then
+        vlan=`readlink $port/vlan| xargs basename`
+    fi
+    if [ -e "$port/namespace" ]; then
+        namespace=`readlink $port/namespace| xargs basename`
+    fi
+    of_id=`cat $port/id`
+    bridge=`readlink $port/bridge| xargs basename`
+    echo "Port $name:"
+    echo "  - bridge: $bridge"
+    echo "  - id: $of_id"
+    echo "  - local-vlan: $vlan"
+    echo "  - mac address: $mac"
+    [ -z "$namespace" ] || echo "  - namespace: $namespace"
+}
+openstack.port.flows ()
+{
+    local id_key=$1  # ultimately could be name, mac, ovs id etc
+    echo "Port $id_key flowinfo:"
+    [ -d "$RESULTS_PATH_HOST/ovs/ports/$id_key" ] || { echo "INFO: port '$id_key' not found"; return; }
+    cat $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/all
+    [ -s "$RESULTS_PATH_HOST/ovs/ports/$id_key/flows/all" ] && echo ""
+    tree $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/by-proto
+    tree $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/by-table
+}
+# default
+openstack.port ()
+{
+    openstack.port.info $1
+}
+
