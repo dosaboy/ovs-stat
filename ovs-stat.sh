@@ -557,7 +557,7 @@ load_bridges_port_flows ()
             mkdir -p $flows_root/by-table
             for table in `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables`; do
                 table_flows=$flows_root/by-table/$table
-                egrep "table=$table," $flows_root/all > $table_flows
+                egrep " table=$table," $flows_root/all > $table_flows
                 [ -s "$table_flows" ] || rm -f $table_flows
             done
 
