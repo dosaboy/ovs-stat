@@ -4,4 +4,3 @@ openstack.dvr ()  # show dvr-mac related info
     tree $RESULTS_PATH_HOST/ovs/bridges/br-{int,tun}/flowinfo/mod_dl_src
 }
 
-

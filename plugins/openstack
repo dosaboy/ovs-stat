@@ -4,7 +4,8 @@ method=
 property=
 prev=
 current=$1
-value='${2:-""}'
+shift
+(($#)) && value="$@" || value=""
 final=false
 while true; do
     prev=${current%%.*}
@@ -31,6 +32,6 @@ if [ -z "$method" ]; then
     echo -e "Choose one of the following:\n"
     declare -f| sed -rn 's/^(openstack\..+)\s+\(\).*/\1/p'
 else
-    eval ${class}${method}${property} "$value"
+    eval ${class}${method}${property} $value
 fi
 

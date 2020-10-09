@@ -1,12 +1,20 @@
 #!/bin/bash
+openstack_usage ()
+{
+    echo "USAGE: required args $@"
+}
+
 openstack.local-vlans.info ()
 {
     readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un    
 }
+# default
 openstack.local-vlans ()
 {
-    openstack.local-vlans.info
+    # these are the neutron "internal" vlans used to identify tenant overlay networks
+    openstack.local-vlans.info $@
 }
+
 
 openstack.ports.list ()
 {
@@ -20,38 +28,49 @@ openstack.ports.list ()
             echo "INFO: vlan $vlan not found"
             return
         fi
-        echo -e "Ports with vlan id 7:"
+        echo -e "Ports with vlan id $vlan:"
         ls $path/ports
     fi
 }
 # default
 openstack.ports ()
 {
-    openstack.ports.list $1
+    openstack.ports.list $@
 }
 
-
+_find_port ()
+{
+    # try by name first
+    local id_key=$1
+    local port="$RESULTS_PATH_HOST/ovs/ports/$id_key"
+    if [ -d "$port" ]; then
+        echo $port
+    else
+        # then mac
+        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l grep -l $id_key`"
+        if [ -z "$result" ]; then
+            echo "INFO: port '$id_key' not found"
+            return 1
+        fi
+        dirname $result
+    fi
+}
+openstack.port.list ()
+{
+    # alias of
+    openstack.ports $@
+}
 openstack.port.info ()
 {
-    local id_key=$1  # ultimately could be name, mac etc
+    (($#)) || { openstack_usage "name|mac address"; return; }
+    local id_key=$1
     local vlan=
     local mac=
     local bridge="unknown"
     local namespace=
 
-    # try by name first
-    name=$id_key
-    port="$RESULTS_PATH_HOST/ovs/ports/$name"
-    if ! [ -d "$port" ]; then
-        # then mac
-        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l grep -l $id_key`"
-        if [ -z "$result" ]; then
-            echo "INFO: port '$id_key' not found"
-            return
-        fi
-        port=`dirname $result`
-        name=`basename $port`
-    fi
+    port=`_find_port $id_key` || return 0
+    name=`basename $port`
 
     mac=`cat $port/hwaddr`
     if [ -e "$port/vlan" ]; then
@@ -71,17 +90,29 @@ openstack.port.info ()
 }
 openstack.port.flows ()
 {
-    local id_key=$1  # ultimately could be name, mac, ovs id etc
+    (($#)) || { openstack_usage "name|mac address [table]"; return; }
+    local id_key=$1
+    local table=
+    (($#>1)) && table=$2
+
     echo "Port $id_key flowinfo:"
-    [ -d "$RESULTS_PATH_HOST/ovs/ports/$id_key" ] || { echo "INFO: port '$id_key' not found"; return; }
-    cat $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/all
-    [ -s "$RESULTS_PATH_HOST/ovs/ports/$id_key/flows/all" ] && echo ""
-    tree $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/by-proto
-    tree $RESULTS_PATH_HOST/ovs/ports/$id_key/flows/by-table
+    port=`_find_port $id_key` || return 0
+
+    if [ -n "$table" ]; then
+        cat $port/flows/by-table/$table
+        return
+    fi
+
+    echo -e "$port/flows/all\n"
+    cat $port/flows/all
+    [ -s "$port/flows/all" ] && echo ""
+
+    tree $port/flows/by-proto
+    tree $port/flows/by-table
 }
 # default
 openstack.port ()
 {
-    openstack.port.info $1
+    openstack.port.info $@
 }
 
