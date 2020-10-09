@@ -1135,7 +1135,7 @@ if ${DO_ACTIONS[COMPRESS_DATASET]}; then
     [ -n "$ARCHIVE_TAG" ] && target+="-$ARCHIVE_TAG"
     target+="-`date +%d%m%y.%s`.tgz"
     # snap running as root won't have access to non-root $HOME
-    tar_root=`pwd`
+    tar_root=`pwd`/
     if ! [ -w $tar_root ]; then
         if [ "${RESULTS_PATH_ROOT:0:5}" == "/tmp/" ]; then
             tar_root="`mktemp -d`/"
