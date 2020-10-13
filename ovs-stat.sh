@@ -1140,7 +1140,6 @@ if ${DO_ACTIONS[SHOW_DATASET]}; then
 fi
 
 if [ -n "$QUERY_STR" ]; then
-    echo -e "Query results:\n"
     . $CWD/plugins/openstack $QUERY_STR
 fi
 

@@ -25,10 +25,9 @@ openstack.ports.list ()
     else
         path=$RESULTS_PATH_HOST/ovs/vlans/$vlan
         if ! [ -d "$path" ]; then
-            echo "INFO: vlan $vlan not found"
+            echo "INFO: vlan $vlan not found" 1>&2
             return
         fi
-        echo -e "Ports with vlan id $vlan:"
         ls $path/ports
     fi
 }
@@ -47,9 +46,9 @@ _find_port ()
         echo $port
     else
         # then mac
-        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l grep -l $id_key`"
+        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l egrep -l "^$id_key\$"`"
         if [ -z "$result" ]; then
-            echo "INFO: port '$id_key' not found"
+            echo "INFO: port '$id_key' not found (searched: name, mac)" 1>&2
             return 1
         fi
         dirname $result
@@ -95,7 +94,6 @@ openstack.port.flows ()
     local table=
     (($#>1)) && table=$2
 
-    echo "Port $id_key flowinfo:"
     port=`_find_port $id_key` || return 0
 
     if [ -n "$table" ]; then
