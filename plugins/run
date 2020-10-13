@@ -1,0 +1,19 @@
+#!/bin/bash
+plugins_path=$(dirname `realpath $0`)/plugins
+. $plugins_path/common
+
+if [ -n "$class" ]; then
+    for s in `find $plugins_path/${class}.d -type f`; do . $s; done
+else
+    echo -e "Choose one of the following:\n"
+    find $plugins_path -name \*.d -type d| xargs -l basename| tr -d '.d'
+    return
+fi
+
+if [ -z "$method" ]; then
+    echo -e "Choose one of the following:\n"
+    declare -f| sed -rn "s/^($class\..+)\s+\(\).*/\1/p"
+else
+    eval ${class}${method}${property} $value
+fi
+

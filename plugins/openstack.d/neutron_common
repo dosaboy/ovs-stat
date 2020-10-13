@@ -1,9 +1,4 @@
 #!/bin/bash
-openstack_usage ()
-{
-    echo "USAGE: required args $@"
-}
-
 openstack.local-vlans.info ()
 {
     readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un    
@@ -37,23 +32,6 @@ openstack.ports ()
     openstack.ports.list $@
 }
 
-_find_port ()
-{
-    # try by name first
-    local id_key=$1
-    local port="$RESULTS_PATH_HOST/ovs/ports/$id_key"
-    if [ -d "$port" ]; then
-        echo $port
-    else
-        # then mac
-        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l egrep -l "^$id_key\$"`"
-        if [ -z "$result" ]; then
-            echo "INFO: port '$id_key' not found (searched: name, mac)" 1>&2
-            return 1
-        fi
-        dirname $result
-    fi
-}
 openstack.port.list ()
 {
     # alias of
@@ -61,7 +39,7 @@ openstack.port.list ()
 }
 openstack.port.info ()
 {
-    (($#)) || { openstack_usage "name|mac address"; return; }
+    (($#)) || { plugin_usage "name|mac address"; return; }
     local id_key=$1
     local vlan=
     local mac=
@@ -89,7 +67,7 @@ openstack.port.info ()
 }
 openstack.port.flows ()
 {
-    (($#)) || { openstack_usage "name|mac address [table]"; return; }
+    (($#)) || { plugin_usage "name|mac address [table]"; return; }
     local id_key=$1
     local table=
     (($#>1)) && table=$2

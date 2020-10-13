@@ -1,0 +1,51 @@
+#!/bin/bash
+class=
+method=
+property=
+prev=
+current=${1:-""}
+shift
+(($#)) && value="$@" || value=""
+final=false
+
+plugin_usage ()
+{
+    echo "USAGE: required args $@"
+}
+
+_find_port ()
+{
+    # try by name first
+    local id_key=$1
+    local port="$RESULTS_PATH_HOST/ovs/ports/$id_key"
+    if [ -d "$port" ]; then
+        echo $port
+    else
+        # then mac
+        result="`find $RESULTS_PATH_HOST/ovs/ports -name hwaddr| xargs -l egrep -l "^$id_key\$"`"
+        if [ -z "$result" ]; then
+            echo "INFO: port '$id_key' not found (searched: name, mac)" 1>&2
+            return 1
+        fi
+        dirname $result
+    fi
+}
+
+while true; do
+    prev=${current%%.*}
+    next=${current##*$prev.}
+    [ "$prev" = "$next" ] && final=true
+    current=$next
+    if [ -z "$class" ]; then
+        class="$prev"
+    elif [ -z "$method" ]; then
+        method=".$prev"
+    elif [ -z "$property" ]; then
+        property=".$prev"
+    else
+        echo "Unknown field $prev"
+        break
+    fi
+    $final && break
+done
+

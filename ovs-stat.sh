@@ -43,6 +43,7 @@ declare -A DO_ACTIONS=(
     [COMPRESS_DATASET]=false
     [X_CHECK_FLOW_VLANS]=false
     [ATTEMPT_VM_MAC_CONVERSION]=false
+    [RUN_QUERY]=false
 )
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
@@ -119,6 +120,10 @@ OPTIONS:
     -q, --quiet
         Do not display any debug or summary output.
 
+    --query <cmd>
+        Run a query against the dataset. To list supported queries provide an
+        empty string e.g. --query ""
+
     -s, --summary
         Only display summary.
 
@@ -189,6 +194,7 @@ while (($#)); do
             # --quiet
             DO_ACTIONS[QUIET]=true
             DO_ACTIONS[SHOW_SUMMARY]=false
+            DO_ACTIONS[RUN_QUERY]=true
             QUERY_STR="$2"  
             shift
             ;;
@@ -1139,8 +1145,8 @@ if ${DO_ACTIONS[SHOW_DATASET]}; then
     tree $args $RESULTS_PATH_HOST
 fi
 
-if [ -n "$QUERY_STR" ]; then
-    . $CWD/plugins/openstack $QUERY_STR
+if ${DO_ACTIONS[RUN_QUERY]}; then
+    . $CWD/plugins/run $QUERY_STR
 fi
 
 if ${DO_ACTIONS[COMPRESS_DATASET]}; then
