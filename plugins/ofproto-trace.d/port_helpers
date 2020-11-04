@@ -7,9 +7,9 @@ ofproto-trace.port.all ()
     local mac=
     local bridge="unknown"
     local namespace=
-
-    port=`_find_port $id_key` || return 0
-    name=`basename $port`
+    local ext_addr=1.1.1.1
+    local port=`_find_port $id_key` || return 0
+    local name=`basename $port`
 
     mac=`cat $port/hwaddr`
     if [ -e "$port/vlan" ]; then
@@ -18,32 +18,36 @@ ofproto-trace.port.all ()
     if [ -e "$port/namespace" ]; then
         namespace=`readlink $port/namespace| xargs basename`
     fi
-    of_id=`cat $port/id`
-    of_id_hex=`printf %x $of_id`
-    bridge=`readlink $port/bridge| xargs basename`
 
-
-    if [ -e "$port/flows/by-table/71" ]; then
-        arp_spa=`sed -rn "s/.+arp_spa=([[:digit:]\.]+)\s+.+/\1/p" $port/flows/by-table/71| uniq`
-    else
-        arp_spa=`sed -rn "s/.+arp_spa=([[:digit:]\.]+)\s+.+/\1/p" $port/flows/all| uniq`
-    fi
+    local of_id=`cat $port/id`
+    local of_id_hex=`printf %x $of_id`
+    local bridge=`readlink $port/bridge| xargs basename`
 
     if [ "${mac:0:5}" = "fe:16" ]; then
         echo "IMPORTANT: it looks like this port is attached to a vm so mac address has been converted from $mac to fa:16:${mac:6}"
         mac=fa:16:${mac:6}
     fi
 
+    # there may be > 1 port/address (e.g. allowed_address_pairs)
+    if [ -e "$port/flows/by-table/71" ]; then
+        readarray -t arp_spas<<<"`grep $mac $port/flows/by-table/71| sed -rn \"s/.+arp_spa=([[:digit:]\.]+)\s+.+/\1/p\"| uniq`"
+    else
+        readarray -t arp_spas<<<"`grep $mac $port/flows/all| sed -rn \"s/.+arp_spa=([[:digit:]\.]+)\s+.+/\1/p\"| uniq`"
+    fi
+
     echo -e "\n[arp]"
-    echo "sudo ovs-appctl ofproto/trace ${bridge} in_port=${of_id},arp,arp_spa=${arp_spa},dl_src=${mac}"
+    for arp_spa in ${arp_spas[@]}; do
+        echo "sudo ovs-appctl ofproto/trace ${bridge} in_port=${of_id},arp,arp_spa=${arp_spa},dl_src=${mac}"
+    done
 
     echo -e "\n[icmp]"
-    ext_addr=1.1.1.1
-    echo "sudo ovs-appctl ofproto/trace ${bridge} in_port=${of_id},ip,nw_proto=1,nw_src=${arp_spa},nw_dst=${ext_addr},dl_src=${mac}"
+    for arp_spa in ${arp_spas[@]}; do
+        echo "sudo ovs-appctl ofproto/trace ${bridge} in_port=${of_id},ip,nw_proto=1,nw_src=${arp_spa},nw_dst=${ext_addr},dl_src=${mac}"
+    done
 
     echo -e "\n[dhcp]"
-    echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=${of_id_hex},in_port=${of_id},tp_src=68,tp_dst=67"
-    echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=${of_id_hex},in_port=${of_id},tp_src=67,tp_dst=68"
+    echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=68,tp_dst=67"
+    echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=67,tp_dst=68"
 
     echo -e "\n[vm-to-vm]"
     echo "sudo ovs-appctl ofproto/trace br-int in_port=${of_id},tcp,dl_src=${mac},dl_dst=MAC_OF_REMOTE_INSTANCE"
