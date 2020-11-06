@@ -19,12 +19,16 @@
 #  - edward.hope-morley@canonical.com
 #  - opentastic@gmail.com
 
-OVS_FS_DATA_SOURCE=
+# this is the root that can contain one or more hosts
 RESULTS_PATH_ROOT=
+# this is the host dir beneath root and can have >= 1
 RESULTS_PATH_HOST=
+# defines whether to delete existing host data
+FORCE=false
+# this is the optional datasource that is required if we want to (re)create a dataset for a given host
+OVS_FS_DATA_SOURCE=
 ARCHIVE_TAG=
 TREE_DEPTH=
-FORCE=false
 MAX_PARALLEL_JOBS=32
 SCRATCH_AREA=`mktemp -d`
 TMP_DATASTORE=
@@ -982,45 +986,92 @@ if [ -n "$OVS_FS_DATA_SOURCE" ] && ! [ "${OVS_FS_DATA_SOURCE:(-1)}" = "/" ]; the
     OVS_FS_DATA_SOURCE="${OVS_FS_DATA_SOURCE}/"
 fi
 
-# no fs data
-# Ensure results path is writeable if exists
+if ! [ -e "$OVS_FS_DATA_SOURCE" ] && $FORCE; then
+    echo "ERROR: need a valid data source when using --force (see --help)"
+    exit 1
+fi
+
+host_exists ()
+{
+    # return true (0) of hostname is part of the set of hostnames provided.
+
+    local hostname="$1"
+    shift
+    echo "$@"| egrep -q "^$hostname$|\s$hostname$|^$hostname\s|\s$hostname\s"
+    return
+}
+
 if ! ${DO_ACTIONS[CREATE_DATASET]} && ! [ -e $RESULTS_PATH_ROOT ]; then
+    # no dataset found and not creating
     echo "ERROR: no dataset found at $RESULTS_PATH_ROOT"
 elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
         ! [ -w $RESULTS_PATH_ROOT ]; then
+    # dataset found but not writeable
     echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
     exit 1
 elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
         [ -z "$TMP_DATASTORE" ]; then
-    if $FORCE; then
-        ${DO_ACTIONS[QUIET]} || echo "Deleting $RESULTS_PATH_ROOT"
-        rm -rf $RESULTS_PATH_ROOT
+
+    readarray -t dataset_hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
+    num_dataset_hosts=${#dataset_hosts[@]}
+
+    if [ -d "$OVS_FS_DATA_SOURCE" ] && $FORCE; then
+        path_to_delete=
+        # dataset found and we want to recreate it
+        if ((num_dataset_hosts>1)); then
+            if [ -n "$HOSTNAME" ]; then
+                path_to_delete=$RESULTS_PATH_ROOT$HOSTNAME
+            elif host_exists `get_hostname` ${dataset_hosts[@]}; then
+                path_to_delete=$RESULTS_PATH_ROOT`get_hostname`
+            fi
+        else
+            if ((num_dataset_hosts)); then
+                existing_host=${dataset_hosts[0]}
+                # if a host exists and --host provided, ensure we only delete --host if it exists
+                if [ -n "$HOSTNAME" ]; then
+                    if [ "$existing_host" = "$HOSTNAME" ]; then
+                        path_to_delete=$RESULTS_PATH_ROOT
+                    fi
+                # if a host exists and matches the one we are about to create, delete it
+                elif [ "$existing_host" = "`get_hostname`" ]; then
+                    path_to_delete=$RESULTS_PATH_ROOT
+                fi
+            else
+                # do nothing
+                path_to_delete=
+            fi
+        fi
+        if [ -n "$path_to_delete" ] && [ -e "$path_to_delete" ]; then
+            ${DO_ACTIONS[QUIET]} || echo "Deleting $path_to_delete"
+            rm -rf $path_to_delete
+        fi
+    elif [ -e "$OVS_FS_DATA_SOURCE" ] && ! [ -e "$RESULTS_PATH_ROOT`get_hostname`" ]; then
+        # continue
+        :
     else
-        # switch to read-only
+        # dataset found and we want to preserve it (read-only)
         DO_ACTIONS[CREATE_DATASET]=false
-        readarray -t hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
         if [ -n "$HOSTNAME" ]; then
-            if ! `echo "${hosts[@]}"| egrep -q "^$HOSTNAME$|\s$HOSTNAME$|^$HOSTNAME\s|\s$HOSTNAME\s"`; then
+            if ! host_exists $HOSTNAME ${dataset_hosts[@]}; then
                 echo "ERROR: hostname '$HOSTNAME' not found in dataset"
                 exit 1
             fi
         else
-            num_hosts=${#hosts[@]}
-            if ((num_hosts>1)); then
+            if ((num_dataset_hosts>1)); then
                 echo "Multiple hosts found in $RESULTS_PATH_ROOT:"
-                for ((i=0;i<num_hosts;i++)); do
-                    echo "[${i}] ${hosts[$i]}"
+                for ((i=0;i<num_dataset_hosts;i++)); do
+                    echo "[${i}] ${dataset_hosts[$i]}"
                 done
-                echo -en "\nWhich would you like to use? [0-$((num_hosts-1))]"
+                echo -en "\nWhich would you like to use? [0-$((num_dataset_hosts-1))]"
                 read answer
                 echo ""
-                if ((answer>num_hosts)); then
-                    echo "ERROR: invalid host id $answer (allowed=0-$((num_hosts-1)))"
+                if ((answer>num_dataset_hosts)); then
+                    echo "ERROR: invalid host id $answer (allowed=0-$((num_dataset_hosts-1)))"
                     exit 1
                 fi
-                HOSTNAME=${hosts[$answer]}
+                HOSTNAME=${dataset_hosts[$answer]}
             else
-                HOSTNAME=${hosts[0]}
+                HOSTNAME=${dataset_hosts[0]}
             fi
         fi
     fi
