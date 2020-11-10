@@ -111,7 +111,9 @@ openstack.bridge.ports ()
             echo "INFO: bridge $bridge not found" 1>&2
             return
         fi
-        readlink $path/ports/*| xargs -l basename| column
+        if ((`ls $path/ports/| wc -l`)); then
+            readlink $path/ports/*| xargs -l basename| column
+        fi
     fi
 }
 # default
