@@ -92,3 +92,40 @@ openstack.port ()
     openstack.port.info $@
 }
 
+openstack.bridge.ports ()
+{
+    local bridge=${1:-}
+    local limit=${2:-0}
+
+    ((limit<=`ls $RESULTS_PATH_HOST/ovs/bridges| wc -l`)) || exit
+
+    if [ -z "$bridge" ]; then
+        for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+            echo "$bridge:"
+            openstack.bridge.ports $bridge $((limit+=1))
+            echo
+        done
+    else
+        path=$RESULTS_PATH_HOST/ovs/bridges/$bridge
+        if ! [ -d "$path" ]; then
+            echo "INFO: bridge $bridge not found" 1>&2
+            return
+        fi
+        readlink $path/ports/*| xargs -l basename| column
+    fi
+}
+# default
+openstack.bridge ()
+{
+    openstack.bridge.ports $@
+}
+
+openstack.bridges.list ()
+{
+    ls $RESULTS_PATH_HOST/ovs/bridges
+}
+# default
+openstack.bridges ()
+{
+    openstack.bridges.list $@
+}
