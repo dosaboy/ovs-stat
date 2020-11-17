@@ -900,37 +900,43 @@ create_dataset ()
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo "done."
 }
 
+prettytable ()
+{
+    local in=$1
+    local len=`head -n 1 $in| wc -c`
+
+    echo -n "+"; i=$((len-2));
+    while ((--i)); do echo -n '-'; done; echo "+"
+    head -n 1 $in
+    echo -n "+"; i=$((len-2)); while ((--i)); do echo -n '-'; done; echo "+"
+    tail +2 $in| sort -hk1
+    echo -n "+"; i=$((len-2)); while ((--i)); do echo -n '-'; done; echo "+"
+}
+
 show_summary ()
 {
     summary=$SCRATCH_AREA/pretty_summary
     (
     echo "| Bridge | Tables | Rules | Cookies | Registers | Ports | Vlans | Ports@vlan | Ports@ns | Ports@veth-peer |"
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        bridge_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge
         echo -n "| $bridge "
-        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables 2>/dev/null| wc -l` "
-        echo -n "| `wc -l $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows 2>/dev/null| awk '{print $1}'` "
-        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies 2>/dev/null| wc -l` "
-        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/registers/* 2>/dev/null| wc -l` "
-        echo -n "| `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports 2>/dev/null| wc -l` "
-        echo -n "| `readlink -f $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| sort -u| wc -l` "
-        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/vlan 2>/dev/null| wc -l` "
+        echo -n "| `ls $bridge_path/flowinfo/tables 2>/dev/null| wc -l` "
+        echo -n "| `wc -l $bridge_path/flows 2>/dev/null| awk '{print $1}'` "
+        echo -n "| `ls $bridge_path/flowinfo/cookies 2>/dev/null| wc -l` "
+        echo -n "| `ls -d $bridge_path/flowinfo/registers/* 2>/dev/null| wc -l` "
+        echo -n "| `ls $bridge_path/ports 2>/dev/null| wc -l` "
+        echo -n "| `readlink -f $bridge_path/ports/*/vlan 2>/dev/null| sort -u| wc -l` "
+        echo -n "| `ls -d $bridge_path/ports/*/vlan 2>/dev/null| wc -l` "
         readarray -t _ns<<<"`readlink -f $RESULTS_PATH_HOST/ovs/ports/*/namespace| sort -u`"
         echo -n "| `for ns in ${_ns[@]}; do readlink -f $ns/*/*/bridge; done| grep $bridge| wc -l` "
-        echo -n "| `ls -d $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*/hostnet/veth_peer 2>/dev/null| wc -l` "
+        echo -n "| `ls -d $bridge_path/ports/*/hostnet/veth_peer 2>/dev/null| wc -l` "
         echo "|"
     done
-    ) | column -t > ${summary}.tmp
-
-    len=`head -n 1 ${summary}.tmp| wc -c`
-    echo -n "+" >> $summary; i=$((len-2)); \
-    while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
-    head -n 1 ${summary}.tmp >> $summary
-    echo -n "+" >> $summary; i=$((len-2)); while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
-    tail +2 ${summary}.tmp| sort -hk1 >> $summary
-    echo -n "+" >> $summary; i=$((len-2)); while ((--i)); do echo -n '-' >> $summary; done; echo "+" >> $summary
+    ) | column -t > $summary
 
     echo -e "\nSummary:"
-    cat $summary
+    prettytable $summary
 }
 
 ensure_interfaces ()
