@@ -1,0 +1,96 @@
+#!/bin/bash
+# Copyright 2020 opentastic@gmail.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Colours:
+CSI='\033['
+RES="${CSI}0m"
+red () { echo "${CSI}31m$1${RES}"; }
+grn () { echo "${CSI}32m$1${RES}"; }
+ylw () { echo "${CSI}33m$1${RES}"; }
+bold () { echo -e "\e[1m$1\e[0m"; }
+uline () { echo -e "\e[4m$1\e[0m"; }
+
+job_wait ()
+{
+    # Keeps a count of number of async jobs we are running and returns true (0)
+    # if we are at MOD max number of parralel jobs so that the caller can
+    # decide whether to call wait().
+    local current_jobs=$1
+
+    if ((current_jobs)) && ! ((current_jobs % MAX_PARALLEL_JOBS)); then
+        return 0
+    else
+        return 1
+    fi
+}
+
+ensure_snap_interfaces ()
+{
+    # If this code is run within a snap, it will need some interfaces connected
+    # in order to be able to access certain data. Returns true (0) only if we
+    # think we can access areas that would otherwise not be accessible.
+
+    # check network-control
+    get_ip_netns &>/dev/null
+    if (($?)); then
+        echo "ERROR: unable to retreive network information - have you done 'snap connect ovs-stat:network-control'?"
+        exit 1
+    fi
+
+    # check openvswitch
+    get_ovs_vsctl_show &>/dev/null
+    if (($?)); then
+        echo "ERROR: unable to retreive openvswitch information - have you done 'snap connect ovs-stat:openvswitch'?"
+        exit 1
+    fi
+}
+
+host_exists ()
+{
+    # Returns true (0) if hostname is part of the set of hostnames provided.
+
+    local hostname="$1"
+    shift
+    echo "$@"| egrep -q "^$hostname$|\s$hostname$|^$hostname\s|\s$hostname\s"
+    return
+}
+
+check_error ()
+{
+    # When an error occurs we store in a file called error.<pid>. This checks
+    # for that file and displays the error if it occured then deletes the file.
+
+    if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
+        echo "ERROR: unable to load $1: `cat $RESULTS_PATH_HOST/error.$$`"
+    fi
+    rm -f $RESULTS_PATH_HOST/error.$$
+}
+
+prettytable ()
+{
+    # Takes as input a set of columns created using the column command and adds
+    # column and row seperators.
+
+    local in=$1
+    local len=`head -n 1 $in| wc -c`
+
+    echo -n "+"; i=$((len-2));
+    while ((--i)); do echo -n '-'; done; echo "+"
+    head -n 1 $in
+    echo -n "+"; i=$((len-2)); while ((--i)); do echo -n '-'; done; echo "+"
+    tail +2 $in| sort -hk1
+    echo -n "+"; i=$((len-2)); while ((--i)); do echo -n '-'; done; echo "+"
+}
+

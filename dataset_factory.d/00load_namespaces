@@ -1,0 +1,15 @@
+#!/bin/bash
+__load_namespaces ()
+{
+    readarray -t namespaces<<<"`get_ip_netns`"
+    { ((${#namespaces[@]}==0)) || [ -z "${namespaces[0]}" ]; } && return
+    for ns in "${namespaces[@]}"; do
+        # NOTE: sometimes ip netns contains (id: <id>) and sometimes it doesn't
+        mkdir -p $RESULTS_PATH_HOST/linux/namespaces/${ns%% *}
+    done
+}
+
+load_namespaces ()
+{
+    __load_namespaces 2>$RESULTS_PATH_HOST/error.$$; check_error "namespaces"
+}

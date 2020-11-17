@@ -1,0 +1,47 @@
+#!/bin/bash
+__load_bridges_port_macs ()
+{
+    # loads mac addresses for ports on all bridges where mac was not found by
+    # other means.
+
+    local mac
+    local section
+    local options
+    local type
+    local local_ip
+    local remote_ip
+    local current_jobs=0
+    local ovsdb_client_list_out
+
+    ovsdb_client_list_out=$SCRATCH_AREA/ovsdb_client_list.$$.`date +%s`
+    get_ovsdb_client_list_dump > $ovsdb_client_list_out
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        for port in `get_ovs_bridge_ports $bridge`; do
+            {
+            [ -e "$RESULTS_PATH_HOST/ovs/ports/$port/hwaddr" ] && continue
+            mac=`get_ovs_ofctl_show $bridge| \
+                 sed -r "s/^\s+.+\($port\):\s+addr:(.+)/\1/g;t;d"`
+            echo $mac > $RESULTS_PATH_HOST/ovs/ports/$port/hwaddr
+
+            # if the port is one of gre|vxlan then it will have tunnel endpoint address info in ovs
+            section=`sed -rn "/^mac_in_use\s+:\s+\"$mac\".*/,/^type\s+:\s+.+/p;" $ovsdb_client_list_out`
+            `echo "$section"| tail -n 1| egrep -q "^type\s+:\s+(vxlan|gre)"` || continue
+            options=`echo $section| grep options`
+            type=`echo "$section"| sed -r 's/^type\s+:\s+(.+)\s*/\1/g;t;d'`
+            local_ip=`echo $options| sed -r 's/.+local_ip="([[:digit:]\.]+)".+/\1/g'`
+            remote_ip=`echo $options| sed -r 's/.+remote_ip="([[:digit:]\.]+)".+/\1/g'`
+            echo $type > $RESULTS_PATH_HOST/ovs/ports/$port/type
+            echo $local_ip > $RESULTS_PATH_HOST/ovs/ports/$port/local_ip
+            echo $remote_ip > $RESULTS_PATH_HOST/ovs/ports/$port/remote_ip
+            } &
+            job_wait $((++current_jobs)) && wait
+        done
+        wait
+    done
+}
+
+load_bridges_port_macs ()
+{
+    __load_bridges_port_macs 2>$RESULTS_PATH_HOST/error.$$; check_error "port macs"
+}

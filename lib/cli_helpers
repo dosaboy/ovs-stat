@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2020 opentastic@gmail.com
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,16 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Colours:
-CSI='\033['
-RES="${CSI}0m"
-red () { echo "${CSI}31m$1${RES}"; }
-grn () { echo "${CSI}32m$1${RES}"; }
-ylw () { echo "${CSI}33m$1${RES}"; }
-bold () { echo -e "\e[1m$1\e[0m"; }
-uline () { echo -e "\e[4m$1\e[0m"; }
-
 COMMAND_CACHE_PATH=`mktemp -d --suffix -$$-cache-i-am-safe-to-delete`
 LOCKPATH=$COMMAND_CACHE_PATH/lock
 
@@ -397,3 +388,4 @@ get_ovs_appctl_dump_conntrack_zone ()
     ) 200>$LOCKPATH
     return `cat $rc`
 }
+

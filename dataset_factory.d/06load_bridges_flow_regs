@@ -1,0 +1,40 @@
+#!/bin/bash
+# used by neutron openvswitch firewall driver
+__load_bridges_flow_regs ()
+{
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        readarray -t regs<<<"`get_ovs_ofctl_dump_flows $bridge | \
+            sed -r 's/.+(reg[[:digit:]]+)=(0x[[:alnum:]]+).+/\1=\2/g;t;d'| sort -u`"
+        regspath=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/registers
+        mkdir -p $regspath
+        ((${#regs[@]})) && [ -n "${regs[0]}" ] || continue
+        # reg5 is portid
+        # reg6 is networkid
+        for ((i=0;i<${#regs[@]};i++)); do
+            reg=${regs[$i]%%=*}
+            val=${regs[$i]##*=}
+            # TODO: these should be segregated by vlan
+            mkdir -p $regspath/$reg
+            if [ "$reg" = "reg$REG_PORT" ]; then
+                hex2dec=$((16#${val##*0x}))
+                ln -s ../../../ports/$hex2dec \
+                    $regspath/$reg/$val  
+            elif [ "$reg" = "reg$REG_NET" ]; then
+                # is this the vlan ID?
+                hex2dec=$((16#${val##*0x}))
+                ln -s ../../../../../../ovs/vlans/$hex2dec \
+                    $regspath/$reg/$val
+            elif [ "$reg" = "reg$REG_REMOTE_GROUP" ]; then
+                # TODO: not sure what to do with this yet
+                echo "$val" > $regspath/$reg/$val
+            else
+                echo "$val" > $regspath/$reg/$val
+            fi
+        done
+    done
+}
+
+load_bridges_flow_regs ()
+{
+    __load_bridges_flow_regs 2>$RESULTS_PATH_HOST/error.$$; check_error "flow regs"    
+}

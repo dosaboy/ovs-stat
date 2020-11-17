@@ -1,0 +1,23 @@
+#!/bin/bash
+# used by neutron openvswitch firewall driver
+__load_bridge_conjunctive_flow_ids ()
+{
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        readarray -t conj_ids<<<"`cat $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows| \
+            sed -r 's/.+conj_id=([[:digit:]]+).+/\1/g;t;d'| sort -u`"
+        conj_ids_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/conj_ids
+        mkdir -p $conj_ids_path
+        ((${#conj_ids[@]})) && [ -n "${conj_ids[0]}" ] || continue
+        for id in ${conj_ids[@]}; do
+            mkdir -p $conj_ids_path/$id
+            egrep "conj_id=$id[, ]|conjunction\($id," \
+                    $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows > \
+                $conj_ids_path/$id/flows
+        done
+    done
+}
+
+load_bridge_conjunctive_flow_ids ()
+{
+    __load_bridge_conjunctive_flow_ids 2>$RESULTS_PATH_HOST/error.$$; check_error "conj_ids"
+}

@@ -1,0 +1,21 @@
+#!/bin/bash
+__load_bridges_flow_tables ()
+{
+    local tables_root
+    local bridge_flows
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        tables_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables
+        bridge_flows=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flows
+        readarray -t tables<<<"`sed -rn 's/.+table=([[:digit:]]+).+/\1/p' $bridge_flows| sort -un`"
+        for t in "${tables[@]}"; do
+            mkdir -p $tables_root/$t
+            egrep "(^|\s+)table=$t," $bridge_flows > ${tables_root}/${t}/flows
+        done
+    done
+}
+
+load_bridges_flow_tables ()
+{
+    __load_bridges_flow_tables 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge flow tables"
+}

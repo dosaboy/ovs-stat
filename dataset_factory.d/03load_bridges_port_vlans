@@ -1,0 +1,28 @@
+#!/bin/bash
+__load_bridges_port_vlans ()
+{
+    # loads all port vlans on all bridges
+
+    mkdir -p $RESULTS_PATH_HOST/ovs/vlans
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        for port in `get_ovs_bridge_ports $bridge`; do
+            readarray -t vlans<<<"`get_ovs_vsctl_show $bridge| \
+                grep -A 1 \"Port \\\"$port\\\"\"| \
+                    sed -r 's/.+tag:\s+([[:digit:]]+)/\1/g;t;d'| \
+                    sort -n | uniq`"
+            ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || continue
+            for vlan in ${vlans[@]}; do
+                mkdir -p $RESULTS_PATH_HOST/ovs/vlans/$vlan/ports
+                ln -s ../../vlans/$vlan \
+                    $RESULTS_PATH_HOST/ovs/ports/$port/vlan
+                ln -s ../../../ports/$port \
+                    $RESULTS_PATH_HOST/ovs/vlans/$vlan/ports/$port
+            done
+        done
+    done
+}
+
+load_bridges_port_vlans ()
+{
+    __load_bridges_port_vlans 2>$RESULTS_PATH_HOST/error.$$; check_error "port vlans"
+}

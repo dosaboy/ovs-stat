@@ -1,0 +1,17 @@
+#!/bin/bash
+__load_ovs_bridges ()
+{
+    # loads all bridges info from ovs
+    mkdir -p $RESULTS_PATH_HOST/ovs/bridges
+    readarray -t bridges<<<"`get_ovs_vsctl_show| \
+        sed -rn 's/.*Bridge\s+\"?([[:alnum:]\-]+)\"*/\1/p'`"
+    ((${#bridges[@]})) && [ -n "${bridges[0]}" ] || return
+    for bridge in ${bridges[@]}; do
+        mkdir -p $RESULTS_PATH_HOST/ovs/bridges/$bridge
+    done
+}
+
+load_ovs_bridges ()
+{
+    __load_ovs_bridges 2>$RESULTS_PATH_HOST/error.$$; check_error "ovs bridges"
+}

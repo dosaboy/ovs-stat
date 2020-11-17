@@ -1,0 +1,22 @@
+#!/bin/bash
+__load_vlan_conntrack_zone_info ()
+{
+    local conntrack_root=$RESULTS_PATH_HOST/ovs/conntrack
+
+    # start with a test to see if we have permissions to get conntrack info
+    get_ovs_appctl_dump_conntrack_zone 0 &>/dev/null
+    (($?)) && return 0  # dont yield error since older snapd can't do this.
+
+    mkdir -p $conntrack_root/zones
+    # include id 0 to catch unzoned
+    for vlan in 0 `ls $RESULTS_PATH_HOST/ovs/vlans/`; do
+        mkdir -p $conntrack_root/zones/$vlan
+        get_ovs_appctl_dump_conntrack_zone $vlan > $conntrack_root/zones/$vlan/entries
+    done
+}
+
+# NOTE: requires snapd with https://pad.lv/1873363
+load_vlan_conntrack_zone_info ()
+{
+    __load_vlan_conntrack_zone_info 2>$RESULTS_PATH_HOST/error.$$; check_error "vlan conntrack zone info"
+}

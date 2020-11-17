@@ -1,0 +1,32 @@
+#!/bin/bash
+organise_mod_dl_src_info ()
+{
+    local direction
+    local mod_dl_src_tmp_d=$1
+    local mod_dl_src_root=$2
+
+    for direction in ingress egress; do
+        if [ -d "$mod_dl_src_tmp_d/$direction" ]; then
+            if ((`ls $mod_dl_src_tmp_d/$direction| wc -l`)); then
+                for target_mac in `ls $mod_dl_src_tmp_d/$direction`; do
+                    # NOTE: in the case of ingress flow rule both macs are local (at least in openstack neutron case)
+                    for local_mac in `ls $mod_dl_src_tmp_d/$direction/$target_mac/`; do
+                        mkdir -p $mod_dl_src_root/$direction/$target_mac
+                        local_mac_path="`egrep -rl \"$local_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
+                        if [ -z "$local_mac_path" ] && ${DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]}; then
+                            vm_mac=`echo $local_mac| sed -r 's/^fa:16/fe:16/g'`
+                            local_mac_path="`egrep -rl \"$vm_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
+                        fi
+                        if [ -n "$local_mac_path" ]; then
+                            rel_path="`echo \"$local_mac_path\"| \
+                                sed -r "s,$RESULTS_PATH_HOST,../../../../../../..,g"`"
+                            ln -s $rel_path $mod_dl_src_root/$direction/$target_mac/$local_mac
+                        else
+                            touch $mod_dl_src_root/$direction/$target_mac/$local_mac
+                        fi
+                    done
+                done
+            fi
+        fi
+    done
+}

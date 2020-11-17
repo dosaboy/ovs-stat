@@ -1,0 +1,166 @@
+#!/bin/bash
+__load_bridges_port_flows ()
+{
+    # loads flows for bridges ports and disects.
+    local direction
+    local local_mac
+    local target_mac
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        current_port_jobs=0
+        for id in `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/ 2>/dev/null`; do
+            {
+            flows_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/$id/flows
+            port_mac=$RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/$id/hwaddr
+            hexid=`printf '%x' $id`
+
+            mkdir -p $flows_root
+            get_ovs_ofctl_dump_flows $bridge | \
+                egrep "in_port=$id[, ]+|output:$id([, ]+|$)|reg5=0x${hexid}[ ,]+|$port_mac" > $flows_root/all
+
+            mkdir -p $flows_root/by-table
+            for table in `ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/tables`; do
+                table_flows=$flows_root/by-table/$table
+                egrep " table=$table," $flows_root/all > $table_flows
+                [ -s "$table_flows" ] || rm -f $table_flows
+            done
+
+            mkdir -p $flows_root/by-proto
+
+            proto_flows_root=$flows_root/by-proto
+
+            proto=$proto_flows_root/dhcp
+            grep udp $flows_root/all| egrep "tp_(src|dst)=(67|68)[, ]+" >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/dns
+            egrep "tp_dst=53[, ]+" $flows_root/all >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/arp
+            egrep "arp" $flows_root/all >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/icmp6
+            egrep "icmp6" $flows_root/all >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/icmp
+            egrep "icmp" $flows_root/all| grep -v icmp6 >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/udp6
+            egrep "udp6" $flows_root/all >> $proto
+            [ -s "$proto" ] || rm -f $proto
+
+            proto=$proto_flows_root/udp
+            egrep "udp" $flows_root/all| grep -v udp6 >> $proto
+            [ -s "$proto" ] || rm -f $proto
+            } &
+            job_wait $((++current_port_jobs)) && wait
+        done
+
+        bridge_flows_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge
+
+        # this is what neutron uses to modify src mac for dvr
+        mod_dl_src_root=$bridge_flows_root/flowinfo/mod_dl_src
+        mod_dl_src_tmp_d=$SCRATCH_AREA/mod_dl_src.$$.`date +%s`/$bridge
+        mkdir -p $mod_dl_src_tmp_d
+        grep "mod_dl_src" $bridge_flows_root/flows > $mod_dl_src_tmp_d/flows
+        num_ovs_ports=`ls $RESULTS_PATH_HOST/ovs/ports| wc -l`
+        if ((num_ovs_ports)) && [ -s "$mod_dl_src_tmp_d/flows" ]; then
+            mkdir -p $mod_dl_src_root
+            current_bridge_jobs=0
+            mkdir -p $mod_dl_src_tmp_d/egress/tmp
+            mkdir -p $mod_dl_src_tmp_d/ingress/tmp
+            while read line; do
+                {
+                mod_dl_src_mac=`echo "$line"| sed -r 's/.+mod_dl_src:([[:alnum:]\:]+).+/\1/g;t;d'`
+                orig_mac=""
+                if `echo "$line"| grep -q dl_dst`; then
+                    orig_mac=`echo "$line"| sed -r 's/.+,dl_dst=([[:alnum:]\:]+).+/\1/g;t;d'`
+                fi
+                if [ -n "$orig_mac" ]; then
+                    # ingress i.e. if dst==remote replace src dvr_mac with local
+                    direction=ingress
+                    local_mac=$orig_mac # in openstack neutron this will be the vm tap
+                    target_mac=$mod_dl_src_mac  # in openstack neutron this will be the qr interface
+                else
+                    # egress i.e. if src==local set src=dvr_mac
+                    direction=egress
+                    local_mac=`echo "$line"| sed -r 's/.+,dl_src=([[:alnum:]\:]+).+/\1/g;t;d'`
+                    target_mac=$mod_dl_src_mac
+                fi
+                mkdir -p $mod_dl_src_tmp_d/$direction/$target_mac/$local_mac
+                } &
+                job_wait $((++current_bridge_jobs)) && wait
+            done < $mod_dl_src_tmp_d/flows
+            wait
+
+            organise_mod_dl_src_info $mod_dl_src_tmp_d $mod_dl_src_root
+        fi
+
+        # collect flows corresponding to nw_src addresses
+        {
+        nw_src_root=$bridge_flows_root/flowinfo/nw_src
+        nw_src_out=$SCRATCH_AREA/nw_src.$$.`date +%s`
+        grep "nw_src" $bridge_flows_root/flows > $nw_src_out.tmp
+        mkdir -p $nw_src_root
+        if [ -s "$nw_src_out.tmp" ]; then
+            sed -r 's/.+nw_src=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $nw_src_out.tmp| sort -u > $nw_src_out
+            while read nw_src_addr; do
+                egrep "nw_src=${nw_src_addr}(/[0-9]+)?" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
+            done < $nw_src_out
+        fi
+        } &
+
+        {
+        # collect flows corresponding to arp_spa addresses
+        arp_spa_root=$bridge_flows_root/flowinfo/arp_spa
+        arp_spa_out=$SCRATCH_AREA/arp_spa.$$.`date +%s`
+        grep "arp_spa" $bridge_flows_root/flows > $arp_spa_out.tmp
+        mkdir -p $arp_spa_root
+        if [ -s "$arp_spa_out.tmp" ]; then
+            sed -r 's/.+arp_spa=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $arp_spa_out.tmp| sort -u > $arp_spa_out
+            while read arp_spa_addr; do
+                egrep "arp_spa=${arp_spa_addr}(/[0-9]+)?" $bridge_flows_root/flows > $arp_spa_root/$arp_spa_addr
+            done < $arp_spa_out
+        fi
+        } &
+
+        {
+        # collect flows corresponding to dl_dst addresses
+        dl_dst_root=$bridge_flows_root/flowinfo/dl_dst
+        dl_dst_out=$SCRATCH_AREA/dl_dst.$$.`date +%s`
+        grep "dl_dst" $bridge_flows_root/flows > $dl_dst_out.tmp
+        mkdir -p $dl_dst_root
+        if [ -s "$dl_dst_out.tmp" ]; then
+            sed -r 's/.+dl_dst=([[:alnum:]\:]+).+/\1/g;t;d' $dl_dst_out.tmp| sort -u > $dl_dst_out
+            while read dl_dst_addr; do
+                egrep "dl_dst=${dl_dst_addr}" $bridge_flows_root/flows > $dl_dst_root/$dl_dst_addr
+            done < $dl_dst_out
+        fi
+        } &
+
+        {
+        # collect flows corresponding to dl_src addresses
+        dl_src_root=$bridge_flows_root/flowinfo/dl_src
+        dl_src_out=$SCRATCH_AREA/dl_src.$$.`date +%s`
+        grep "dl_src" $bridge_flows_root/flows > $dl_src_out.tmp
+        mkdir -p $dl_src_root
+        if [ -s "$dl_src_out.tmp" ]; then
+            sed -r 's/.+dl_src=([[:alnum:]\:]+).+/\1/g;t;d' $dl_src_out.tmp| sort -u > $dl_src_out
+            while read dl_src_addr; do
+                egrep "dl_src=${dl_src_addr}" $bridge_flows_root/flows > $dl_src_root/$dl_src_addr
+            done < $dl_src_out
+        fi
+        } &
+
+        wait
+    done
+}
+
+load_bridges_port_flows ()
+{
+    __load_bridges_port_flows 2>$RESULTS_PATH_HOST/error.$$; check_error "port flows"
+}

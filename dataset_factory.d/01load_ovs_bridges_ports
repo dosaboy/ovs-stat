@@ -1,0 +1,55 @@
+#!/bin/bash
+__get_port_info ()
+{
+    local port=$1
+    local bridge=$2
+    local name=${port##*:}
+    local id=${port%%:*}
+
+    mkdir -p $RESULTS_PATH_HOST/ovs/ports/$name
+    ln -s ../../bridges/$bridge \
+        $RESULTS_PATH_HOST/ovs/ports/$name/bridge
+    ln -s ../../../ports/$name \
+        $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/$id
+    echo $id > $RESULTS_PATH_HOST/ovs/ports/$name/id
+
+    # is it actually a linux port - create fwd and rev ref
+    if `get_ip_link_show| grep -q $name`; then
+        mkdir -p $RESULTS_PATH_HOST/linux/ports/$name
+        ln -s ../../../linux/ports/$name \
+            $RESULTS_PATH_HOST/ovs/ports/$name/hostnet
+        ln -s ../../../ovs/ports/$name \
+            $RESULTS_PATH_HOST/linux/ports/$name/ovs
+    fi
+}
+
+__load_ovs_bridges_ports ()
+{
+    # loads all ports on all bridges
+    #
+    # NOTE: if a non-existant port is attached to a bridge it will show in
+    #       ovs-vsctl but not ovs-ofctl. We use the latter here so if port is
+    #       missing from the dataset it is because it could not be found by
+    #       ovs.
+    # TODO: should x-ref with ovs-vsctl list-ports <bridge> so that we have a
+    #       way to alert.
+    local current_jobs=0
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
+            sed -rn 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/p'`"
+        mkdir -p $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports
+        ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
+        for port in "${ports[@]}"; do
+            __get_port_info $port $bridge &
+            job_wait $((++current_jobs)) && wait
+        done
+        wait
+    done
+}
+
+load_ovs_bridges_ports ()
+{
+    __load_ovs_bridges_ports 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge ports"
+}
+

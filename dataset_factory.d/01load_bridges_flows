@@ -1,0 +1,28 @@
+#!/bin/bash
+__load_bridges_flows ()
+{
+    local flows_path
+    local cookies_path
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        flows_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flows
+        get_ovs_ofctl_dump_flows $bridge > $flows_path
+
+        readarray -t cookies <<<"`sed -r 's/.*cookie=0x([[:alnum:]]+),.+/\1/g;t;d' $flows_path| sort -u`"
+        cookies_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies
+        mkdir -p $cookies_path
+        for c in ${cookies[@]}; do
+            grep "cookie=0x$c," $flows_path > $cookies_path/$c
+        done
+        sed -r -e 's/cookie=[[:alnum:]]+,\s+//g' \
+               -e 's/duration=[[:digit:]\.]+s,\s+//g' \
+               -e 's/n_[[:alnum:]]+=[[:digit:]]+,\s+//g' \
+               -e 's/[[:alnum:]]+_age=[[:digit:]]+,\s+//g' \
+            $flows_path > ${flows_path}.stripped
+    done    
+}
+
+load_bridges_flows ()
+{
+    __load_bridges_flows 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge flows"
+}
