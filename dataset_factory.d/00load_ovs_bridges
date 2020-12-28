@@ -2,7 +2,7 @@
 TRAP_ERROR_MSG="failed to get ovs bridges"
 
 # lib
-for l in `find $CWD/lib -type f`; do source $l; done
+for l in `find $CWD/libcode -type f`; do source $l; done
 
 __load_ovs_bridges ()
 {

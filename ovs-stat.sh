@@ -57,7 +57,7 @@ export REG_NET=6
 export REG_REMOTE_GROUP=7
 
 # load lib code
-for l in `find $CWD/lib -type f`; do source $l; done
+for l in `find $CWD/libcode -type f`; do source $l; done
 
 usage ()
 {
@@ -237,7 +237,7 @@ create_dataset ()
 
     # ordering is important!
     for priority in {00..99}; do
-        for p in `find dataset_factory.d -name $priority\*`; do
+        for p in `find $CWD/dataset_factory.d -name $priority\*`; do
             $p
             ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
         done
