@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/bin/bash -u
+TRAP_ERROR_MSG="failed to get flow vlans"
+
+# lib
+for l in `find $CWD/lib -type f`; do source $l; done
+
 __load_bridges_flow_vlans ()
 {
     # loads all vlans contained in flows on bridge
@@ -29,14 +34,12 @@ __load_bridges_flow_vlans ()
                 egrep "$exp2" $bridge_flows_out > $flows_out
 
             # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
-            if ${DO_ACTIONS[CHECK_FLOW_VLANS]}; then
-                ln -s ../../../../../vlans/$vlan $flow_vlans_root/$vlan/vlan
+            if $CHECK_FLOW_VLANS; then
+                ln -s ../../.././../vlans/$vlan $flow_vlans_root/$vlan/vlan
             fi
         done
     done
 }
 
-load_bridges_flow_vlans ()
-{
-    __load_bridges_flow_vlans 2>$RESULTS_PATH_HOST/error.$$; check_error "flow vlans"
-}
+# main()
+__load_bridges_flow_vlans 2>$RESULTS_PATH_HOST/error.$$

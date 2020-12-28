@@ -13,6 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+check_error ()
+{
+    # When an error occurs we store in a file called error.<pid>. This checks
+    # for that file and displays the error if it occured then deletes the file.
+
+    if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
+        echo -e "\nERROR: unable to load $1: `cat $RESULTS_PATH_HOST/error.$$`"
+    fi
+    rm -f $RESULTS_PATH_HOST/error.$$
+}
+
+# ensure we catch script errors e.g. unsigned var errors (-u)
+catch_error ()
+{
+    check_error ${TRAP_ERROR_MSG:-"caught script error"}
+}
+trap catch_error EXIT
+
 # Colours:
 CSI='\033['
 RES="${CSI}0m"
@@ -65,17 +83,6 @@ host_exists ()
     shift
     echo "$@"| egrep -q "^$hostname$|\s$hostname$|^$hostname\s|\s$hostname\s"
     return
-}
-
-check_error ()
-{
-    # When an error occurs we store in a file called error.<pid>. This checks
-    # for that file and displays the error if it occured then deletes the file.
-
-    if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
-        echo "ERROR: unable to load $1: `cat $RESULTS_PATH_HOST/error.$$`"
-    fi
-    rm -f $RESULTS_PATH_HOST/error.$$
 }
 
 prettytable ()

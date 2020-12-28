@@ -20,22 +20,25 @@
 #  - opentastic@gmail.com
 
 # this is the root that can contain one or more hosts
-RESULTS_PATH_ROOT=
+export RESULTS_PATH_ROOT=
 # this is the host dir beneath root and can have >= 1
-RESULTS_PATH_HOST=
+export RESULTS_PATH_HOST=
 # defines whether to delete existing host data
-FORCE=false
+export FORCE=false
 # this is the optional datasource that is required if we want to (re)create a dataset for a given host
-OVS_FS_DATA_SOURCE=
-ARCHIVE_TAG=
-TREE_DEPTH=
-MAX_PARALLEL_JOBS=32
-SCRATCH_AREA=`mktemp -d`
-TMP_DATASTORE=
-HOSTNAME=
-QUERY_STR=
-CWD=$(dirname `realpath $0`)
+export OVS_FS_DATA_SOURCE=
+export ARCHIVE_TAG=
+export TREE_DEPTH=
+export MAX_PARALLEL_JOBS=32
+export SCRATCH_AREA=`mktemp -d`
+export TMP_DATASTORE=
+export HOSTNAME=
+export QUERY_STR=
+export CWD=$(dirname `realpath $0`)
+export CHECK_FLOW_VLANS=false  # fixme: find a better place for this
+export ATTEMPT_VM_MAC_CONVERSION=false  # fixme: find a better place for this
 
+# can't export assoc
 declare -A DO_ACTIONS=(
     [SHOW_DATASET]=false
     [CREATE_DATASET]=true
@@ -45,15 +48,13 @@ declare -A DO_ACTIONS=(
     [QUIET]=false
     [SHOW_NEUTRON_ERRORS]=false
     [COMPRESS_DATASET]=false
-    [CHECK_FLOW_VLANS]=false
-    [ATTEMPT_VM_MAC_CONVERSION]=false
     [RUN_QUERY]=false
 )
 
 # See neutron/agent/linux/openvswitch_firewall/constants.py
-REG_PORT=5
-REG_NET=6
-REG_REMOTE_GROUP=7
+export REG_PORT=5
+export REG_NET=6
+export REG_REMOTE_GROUP=7
 
 # load lib code
 for l in `find $CWD/lib -type f`; do source $l; done
@@ -162,10 +163,10 @@ while (($#)); do
             shift
             ;;
         --attempt-vm-mac-conversion)
-            DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]=true
+            ATTEMPT_VM_MAC_CONVERSION=true
             ;;
         --check-flow-vlans)
-            DO_ACTIONS[CHECK_FLOW_VLANS]=true
+            CHECK_FLOW_VLANS=true
             ;;
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
@@ -237,8 +238,7 @@ create_dataset ()
     # ordering is important!
     for priority in {00..99}; do
         for p in `find dataset_factory.d -name $priority\*`; do
-            source $p
-            ${p##*$priority}
+            $p
             ${DO_ACTIONS[SHOW_SUMMARY]} && echo -n "."
         done
         wait

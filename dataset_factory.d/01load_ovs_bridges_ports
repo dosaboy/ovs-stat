@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/bin/bash -u
+TRAP_ERROR_MSG="failed to get bridge ports"
+
+# lib
+for l in `find $CWD/lib -type f`; do source $l; done
+
 __get_port_info ()
 {
     local port=$1
@@ -48,8 +53,6 @@ __load_ovs_bridges_ports ()
     done
 }
 
-load_ovs_bridges_ports ()
-{
-    __load_ovs_bridges_ports 2>$RESULTS_PATH_HOST/error.$$; check_error "bridge ports"
-}
+# main()
+__load_ovs_bridges_ports 2>$RESULTS_PATH_HOST/error.$$
 

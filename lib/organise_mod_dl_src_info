@@ -13,7 +13,7 @@ organise_mod_dl_src_info ()
                     for local_mac in `ls $mod_dl_src_tmp_d/$direction/$target_mac/`; do
                         mkdir -p $mod_dl_src_root/$direction/$target_mac
                         local_mac_path="`egrep -rl \"$local_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
-                        if [ -z "$local_mac_path" ] && ${DO_ACTIONS[ATTEMPT_VM_MAC_CONVERSION]}; then
+                        if [ -z "$local_mac_path" ] && $ATTEMPT_VM_MAC_CONVERSION; then
                             vm_mac=`echo $local_mac| sed -r 's/^fa:16/fe:16/g'`
                             local_mac_path="`egrep -rl \"$vm_mac\" $RESULTS_PATH_HOST/ovs/ports/*/hwaddr`"
                         fi

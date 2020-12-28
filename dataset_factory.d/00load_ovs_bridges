@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/bin/bash -u
+TRAP_ERROR_MSG="failed to get ovs bridges"
+
+# lib
+for l in `find $CWD/lib -type f`; do source $l; done
+
 __load_ovs_bridges ()
 {
     # loads all bridges info from ovs
@@ -11,7 +16,6 @@ __load_ovs_bridges ()
     done
 }
 
-load_ovs_bridges ()
-{
-    __load_ovs_bridges 2>$RESULTS_PATH_HOST/error.$$; check_error "ovs bridges"
-}
+# main()
+__load_ovs_bridges 2>$RESULTS_PATH_HOST/error.$$
+
