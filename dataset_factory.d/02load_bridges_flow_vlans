@@ -35,7 +35,7 @@ __load_bridges_flow_vlans ()
 
             # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
             if $CHECK_FLOW_VLANS; then
-                ln -s ../../.././../vlans/$vlan $flow_vlans_root/$vlan/vlan
+                ln -s ../../../../../vlans/$vlan $flow_vlans_root/$vlan/vlan
             fi
         done
     done
