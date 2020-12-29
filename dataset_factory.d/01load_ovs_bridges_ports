@@ -2,7 +2,7 @@
 TRAP_ERROR_MSG="failed to get bridge ports"
 
 # lib
-for l in `find $CWD/libcode -type f`; do source $l; done
+for l in `find $CWD/common -type f`; do source $l; done
 
 __get_port_info ()
 {

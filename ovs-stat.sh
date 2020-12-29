@@ -57,7 +57,7 @@ export REG_NET=6
 export REG_REMOTE_GROUP=7
 
 # load lib code
-for l in `find $CWD/libcode -type f`; do source $l; done
+for l in `find $CWD/common -type f`; do source $l; done
 
 usage ()
 {

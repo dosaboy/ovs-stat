@@ -2,7 +2,7 @@
 TRAP_ERROR_MSG="failed to get port macs"
 
 # lib
-for l in `find $CWD/libcode -type f`; do source $l; done
+for l in `find $CWD/common -type f`; do source $l; done
 
 __load_bridges_port_macs ()
 {
