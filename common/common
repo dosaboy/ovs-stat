@@ -20,6 +20,7 @@ check_error ()
 
     if [ -s "$RESULTS_PATH_HOST/error.$$" ]; then
         echo -e "\nERROR: unable to load $1: `cat $RESULTS_PATH_HOST/error.$$`"
+        exit 1
     fi
     rm -f $RESULTS_PATH_HOST/error.$$
 }
@@ -27,6 +28,7 @@ check_error ()
 # ensure we catch script errors e.g. unsigned var errors (-u)
 catch_error ()
 {
+    wait
     check_error ${TRAP_ERROR_MSG:-"caught script error"}
 }
 trap catch_error EXIT
@@ -101,3 +103,8 @@ prettytable ()
     echo -n "+"; i=$((len-2)); while ((--i)); do echo -n '-'; done; echo "+"
 }
 
+get_scratch_path ()
+{
+    local label=${1:-"tmp"}
+    echo "$SCRATCH_AREA/$label.$$.`date +%s`.$RANDOM"
+}

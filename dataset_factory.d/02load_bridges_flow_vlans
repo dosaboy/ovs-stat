@@ -15,7 +15,7 @@ __load_bridges_flow_vlans ()
     local grep_flow_vlan_regex2='.+dl_vlan=$vlan[, ]+.+'
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        bridge_flows_out=$SCRATCH_AREA/bridge_flow_vlans.$$.`date +%s`
+        bridge_flows_out=`get_scratch_path bridge_flow_vlans`
         get_ovs_ofctl_dump_flows $bridge > $bridge_flows_out
         readarray -t vlans<<<"`sed -r -e "s/$sed_flow_vlan_regex1/\1/g" \
                                       -e "s/$sed_flow_vlan_regex2/\1/g;t;d" \

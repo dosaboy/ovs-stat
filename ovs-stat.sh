@@ -249,7 +249,7 @@ create_dataset ()
 
 show_summary ()
 {
-    summary=$SCRATCH_AREA/pretty_summary
+    summary=`get_scratch_path pretty_summary`
     (
     echo "| Bridge | Tables | Rules | Cookies | Registers | Ports | Vlans | Ports@vlan | Ports@ns | Ports@veth-peer |"
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
@@ -433,7 +433,7 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
 fi
 
 if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
-    output=$SCRATCH_AREA/neutron_errors
+    output=`get_scratch_path neutron_errors`
     mkdir -p $output
 
     # look for "dead" vlan tagged ports

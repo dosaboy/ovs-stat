@@ -18,7 +18,7 @@ __load_bridges_port_macs ()
     local current_jobs=0
     local ovsdb_client_list_out
 
-    ovsdb_client_list_out=$SCRATCH_AREA/ovsdb_client_list.$$.`date +%s`
+    ovsdb_client_list_out=`get_scratch_path ovsdb_client_list`
     get_ovsdb_client_list_dump > $ovsdb_client_list_out
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do

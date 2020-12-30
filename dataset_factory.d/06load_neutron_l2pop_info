@@ -4,41 +4,68 @@ TRAP_ERROR_MSG="failed to get openstack l2pop info"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
-__load_neutron_l2pop_info ()
+__get_bridge_vlan_flood_tuns ()
 {
-    local current_jobs=0
-    local -a tun_port_ids=()
+    local line="$1"
+    local bridge=$2
+    local tun_port_ids_path=$3
     local vlan
     local output
 
+    vlan=`echo $line| sed -rn 's/.+dl_vlan=([[:digit:]]+)\s+.+/\1/p'`
+    [ -n "$vlan" ] || return
+
+    # skip if no output info
+    echo "$line"| grep -q "output:" || return
+
+    for tun_port_id in `ls $tun_port_ids_path`; do
+        if `echo $line| egrep -q "output:$tun_port_id(\$|,)"`; then
+            output=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/openstack/l2pop/vlans/$vlan/flood_ports
+            mkdir -p $output
+            # NOTE: if this fails it implies there are > 1 flood flow
+            #       for this vlan which is currently not expected or
+            #       valid but that could change in the future.
+            ln -s ../../../../../../ports/$tun_port_id $output
+        fi
+    done
+}
+
+__get_bridge_flow_vlan_tunnel_flood_ports ()
+{
+    local bridge=$1
+    local tun_port_ids_path=$2
+    local current_jobs=0
+    local dl_vlan_tmp=`get_scratch_path dl_vlan_flows`
+
+    grep dl_vlan $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows.stripped > $dl_vlan_tmp
+    while read line; do
+        __get_bridge_vlan_flood_tuns "$line" $bridge $tun_port_ids_path &
+        job_wait $((++current_jobs)) && wait
+    done < $dl_vlan_tmp
+    wait
+}
+
+__load_neutron_l2pop_info ()
+{
+    local port
+    local port_id
+    local tun_port_ids_tmp_d=`get_scratch_path tun_port_ids`
+
+    # first get list of tunnel port ids (if port has type then it is assumed to
+    # be a tunnel port (vxlan, gre etc)).
     readarray -t port_types<<<`find $RESULTS_PATH_HOST/ovs/ports -name type`
-    # if port has type then it is assumed to be a tunnel port
+    mkdir -p $tun_port_ids_tmp_d
     for type in ${port_types[@]}; do
-        tun_port_ids+=( `dirname $(echo $type)| xargs -l -I{} cat {}/id` )
+        port=`dirname $type`
+        port_id=`cat $port/id`
+        touch $tun_port_ids_tmp_d/$port_id
     done
 
+    # now find vlan flows and the tunnels they flood to (if any)
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        while read line; do
-            (
-            vlan=`echo $line| sed -rn 's/.+dl_vlan=([[:digit:]]+)\s+.+/\1/p'`
-            [ -n "$vlan" ] || exit
-            # skip if no output info
-            ((`echo "$line"| sed -r 's/output:/\n/g'| wc -l`>1)) || exit
-            for id in ${tun_port_ids[@]}; do
-                if `echo $line| egrep -q "output:$id(\$|,)"`; then
-                    output=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/openstack/l2pop/vlans/$vlan/flood_ports
-                    [ -d "$output" ] || mkdir -p $output
-                    # NOTE: if this fails it implies there are > 1 flood flow
-                    #       for this vlan which is currently not expected or
-                    #       valid but that could change in the future.
-                    ln -s ../../../../../../ports/$id $output
-                fi
-            done
-            ) &
-            job_wait $((++current_jobs)) && wait
-        done < $RESULTS_PATH_HOST/ovs/bridges/$bridge/flows.stripped
-        wait
+        __get_bridge_flow_vlan_tunnel_flood_ports $bridge $tun_port_ids_tmp_d &
     done
+    wait
 }
 
 # main()
