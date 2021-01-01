@@ -5,7 +5,7 @@ TRAP_ERROR_MSG="failed to get flow registers"
 for l in `find $CWD/common -type f`; do source $l; done
 
 # used by neutron openvswitch firewall driver
-__load_bridges_flow_regs ()
+__load_bridge_flow_regs ()
 {
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         readarray -t regs<<<"`get_ovs_ofctl_dump_flows $bridge | \
@@ -40,5 +40,5 @@ __load_bridges_flow_regs ()
 }
 
 # main()
-__load_bridges_flow_regs 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_flow_regs 2>$RESULTS_PATH_HOST/error.$$
 

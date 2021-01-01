@@ -4,7 +4,7 @@ TRAP_ERROR_MSG="failed to get port vlans"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
-__load_bridges_port_vlans ()
+__load_bridge_port_vlans ()
 {
     # loads all port vlans on all bridges
 
@@ -28,5 +28,5 @@ __load_bridges_port_vlans ()
 }
 
 # main()
-__load_bridges_port_vlans 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_port_vlans 2>$RESULTS_PATH_HOST/error.$$
 

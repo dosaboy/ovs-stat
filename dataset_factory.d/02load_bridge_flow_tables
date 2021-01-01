@@ -4,7 +4,7 @@ TRAP_ERROR_MSG="failed to get flow tables"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
-__load_bridges_flow_tables ()
+__load_bridge_flow_tables ()
 {
     local tables_root
     local bridge_flows
@@ -21,5 +21,5 @@ __load_bridges_flow_tables ()
 }
 
 # main()
-__load_bridges_flow_tables 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_flow_tables 2>$RESULTS_PATH_HOST/error.$$
 

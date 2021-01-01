@@ -4,10 +4,9 @@ TRAP_ERROR_MSG="failed to get flow vlans"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
-__load_bridges_flow_vlans ()
+__load_bridge_flow_vlans ()
 {
     # loads all vlans contained in flows on bridge
-
     local sed_flow_vlan_regex1='.+mod_vlan_vid:([[:digit:]]+)[, ]+.+'
     local grep_flow_vlan_regex1='.+mod_vlan_vid:$vlan[, ]+.+'
 
@@ -15,11 +14,10 @@ __load_bridges_flow_vlans ()
     local grep_flow_vlan_regex2='.+dl_vlan=$vlan[, ]+.+'
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
-        bridge_flows_out=`get_scratch_path bridge_flow_vlans`
-        get_ovs_ofctl_dump_flows $bridge > $bridge_flows_out
+        bridge_flows=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flows
         readarray -t vlans<<<"`sed -r -e "s/$sed_flow_vlan_regex1/\1/g" \
                                       -e "s/$sed_flow_vlan_regex2/\1/g;t;d" \
-                                      $bridge_flows_out | \
+                                      $bridge_flows | \
                                sort -n| uniq`"
         flow_vlans_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/vlans
         mkdir -p $flow_vlans_root
@@ -29,9 +27,9 @@ __load_bridges_flow_vlans ()
             local flows_out=$flow_vlans_root/$vlan/flows
             exp1=`eval echo $grep_flow_vlan_regex1`
             exp2=`eval echo $grep_flow_vlan_regex2`
-            egrep "$exp1" $bridge_flows_out > $flows_out
+            egrep "$exp1" $bridge_flows > $flows_out
             [ -s "$flows_out" ] || \
-                egrep "$exp2" $bridge_flows_out > $flows_out
+                egrep "$exp2" $bridge_flows > $flows_out
 
             # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
             if $CHECK_FLOW_VLANS; then
@@ -42,4 +40,4 @@ __load_bridges_flow_vlans ()
 }
 
 # main()
-__load_bridges_flow_vlans 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_flow_vlans 2>$RESULTS_PATH_HOST/error.$$

@@ -4,7 +4,7 @@ get_ovs_bridge_ports ()
     # returns list of all ports on bridge
     local bridge=$1
 
-    ((`ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/| wc -l`)) || return
-    find $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/*| xargs -l readlink -f| \
+    ((`ls $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports| wc -l`)) || return
+    find $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports -type l| xargs -l readlink -f| \
         xargs -l basename
 }

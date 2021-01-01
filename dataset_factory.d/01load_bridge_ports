@@ -28,7 +28,7 @@ __get_port_info ()
     fi
 }
 
-__load_ovs_bridges_ports ()
+__load_bridge_ports ()
 {
     # loads all ports on all bridges
     #
@@ -41,9 +41,10 @@ __load_ovs_bridges_ports ()
     local current_jobs=0
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        current_jobs=0
+        mkdir -p $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
             sed -rn 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/p'`"
-        mkdir -p $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports
         ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
         for port in "${ports[@]}"; do
             __get_port_info $port $bridge &
@@ -54,5 +55,5 @@ __load_ovs_bridges_ports ()
 }
 
 # main()
-__load_ovs_bridges_ports 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_ports 2>$RESULTS_PATH_HOST/error.$$
 

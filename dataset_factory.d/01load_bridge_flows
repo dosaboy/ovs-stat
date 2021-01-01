@@ -4,7 +4,7 @@ TRAP_ERROR_MSG="failed to get bridge flows"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
-__load_bridges_flows ()
+__load_bridge_flows ()
 {
     local flows_path
     local cookies_path
@@ -28,5 +28,5 @@ __load_bridges_flows ()
 }
 
 # main()
-__load_bridges_flows 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_flows 2>$RESULTS_PATH_HOST/error.$$
 
