@@ -4,38 +4,77 @@ TRAP_ERROR_MSG="failed to get flow vlans"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
+__save_port_flow_vlan_info ()
+{
+    local flow_vlans_root=$1
+    local bridge_flows=$2
+    local flow_type=$3
+    shift 3
+    local vlan_ids=( $@ )
+    local -A egrep_expr=( [mod_vlan]='.+mod_vlan_vid:$vlan[, ]+.+'
+                          [dl_vlan]='.+dl_vlan=$vlan[, ]+.+' )
+
+    for vlan in ${vlan_ids[@]}; do
+        mkdir -p $flow_vlans_root/$flow_type/$vlan
+        flows_out=$flow_vlans_root/$flow_type/$vlan/flows
+
+        exp=`eval echo ${egrep_expr[$flow_type]}`
+        egrep "$exp" $bridge_flows > $flows_out
+
+        if $SCENARIO_OPENSTACK_NEUTRON; then
+            # NOTE: if Openstack we expect 1:1 mapping for:
+            #  * mod_vlan on br-tun and ports on br-int (neutron local vlan)
+            #  * mod_vlan on br-int and ports on br-int (neutron egress vlan provider)
+            #  * dl_vlan on br-data* and ports on br-int (neutron ingress vlan provider)
+            if [[ $flow_type == dl_vlan ]]; then
+                if [[ $bridge != br-tun ]] && [[ $bridge != br-int ]] && \
+                        [[ $bridge != br-ex ]]; then
+                    ln -s ../../../../../../vlans/$vlan $flow_vlans_root/$flow_type/$vlan/vlan
+                fi
+            elif [[ $flow_type == mod_vlan ]]; then
+                if [[ $bridge == br-tun ]]; then
+                    ln -s ../../../../../../vlans/$vlan $flow_vlans_root/$flow_type/$vlan/vlan
+                elif [[ $bridge == br-int ]]; then
+                    ln -s ../../../../../../vlans/$vlan $flow_vlans_root/$flow_type/$vlan/vlan
+                fi
+            fi
+        fi
+    done
+}
+
 __load_bridge_flow_vlans ()
 {
-    # loads all vlans contained in flows on bridge
-    local sed_flow_vlan_regex1='.+mod_vlan_vid:([[:digit:]]+)[, ]+.+'
-    local grep_flow_vlan_regex1='.+mod_vlan_vid:$vlan[, ]+.+'
+    local bridge_flows
+    local flow_vlans_root
+    local flows_out
+    local vlan
 
-    local sed_flow_vlan_regex2='.+dl_vlan=([[:digit:]]+)[, ]+.+'
-    local grep_flow_vlan_regex2='.+dl_vlan=$vlan[, ]+.+'
+    # flows used to tag packets - can be ingress or egress
+    local mod_vlan_sed_regex='.+mod_vlan_vid:([[:digit:]]+)[, ]+.+'
+    local mod_vlan_grep_regex='.+mod_vlan_vid:$vlan[, ]+.+'
+
+    # flows used to identify packets headed for a particular vlan
+    local dl_vlan_sed_regex='.+dl_vlan=([[:digit:]]+)[, ]+.+'
+    local dl_vlan_grep_regex='.+dl_vlan=$vlan[, ]+.+'
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         bridge_flows=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flows
-        readarray -t vlans<<<"`sed -r -e "s/$sed_flow_vlan_regex1/\1/g" \
-                                      -e "s/$sed_flow_vlan_regex2/\1/g;t;d" \
-                                      $bridge_flows | \
-                               sort -n| uniq`"
         flow_vlans_root=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/vlans
         mkdir -p $flow_vlans_root
-        ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || continue
-        for vlan in ${vlans[@]}; do
-            mkdir -p $flow_vlans_root/$vlan
-            local flows_out=$flow_vlans_root/$vlan/flows
-            exp1=`eval echo $grep_flow_vlan_regex1`
-            exp2=`eval echo $grep_flow_vlan_regex2`
-            egrep "$exp1" $bridge_flows > $flows_out
-            [ -s "$flows_out" ] || \
-                egrep "$exp2" $bridge_flows > $flows_out
 
-            # it is possible that flows are tagging packets for egress over ports that are untagged so only do this if requested.
-            if $CHECK_FLOW_VLANS; then
-                ln -s ../../../../../vlans/$vlan $flow_vlans_root/$vlan/vlan
-            fi
-        done
+        readarray -t mod_vlans<<<"`sed -rn \"s/$mod_vlan_sed_regex/\1/p\" \
+                                      $bridge_flows | sort -un`"
+
+        if ((${#mod_vlans[@]})) && [ -n "${mod_vlans[0]}" ]; then
+            __save_port_flow_vlan_info $flow_vlans_root $bridge_flows mod_vlan ${mod_vlans[@]}
+        fi
+
+        readarray -t dl_vlans<<<"`sed -rn \"s/$dl_vlan_sed_regex/\1/p\" \
+                                      $bridge_flows | sort -un`"
+
+        if ((${#dl_vlans[@]})) && [ -n "${dl_vlans[0]}" ]; then
+            __save_port_flow_vlan_info $flow_vlans_root $bridge_flows dl_vlan ${dl_vlans[@]}
+        fi
     done
 }
 

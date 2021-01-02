@@ -10,6 +10,7 @@ __get_port_info ()
     local bridge=$2
     local name=${port##*:}
     local id=${port%%:*}
+    local mac
 
     mkdir -p $RESULTS_PATH_HOST/ovs/ports/$name
     ln -s ../../bridges/$bridge \
@@ -26,6 +27,10 @@ __get_port_info ()
         ln -s ../../../ovs/ports/$name \
             $RESULTS_PATH_HOST/linux/ports/$name/ovs
     fi
+
+    mac=`get_ovs_ofctl_show $bridge| \
+         sed -r "s/^\s+.+\($name\):\s+addr:(.+)/\1/g;t;d"`
+    echo $mac > $RESULTS_PATH_HOST/ovs/ports/$name/hwaddr
 }
 
 __load_bridge_ports ()

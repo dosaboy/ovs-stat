@@ -35,8 +35,9 @@ export TMP_DATASTORE=
 export HOSTNAME=
 export QUERY_STR=
 export CWD=$(dirname `realpath $0`)
-export CHECK_FLOW_VLANS=false  # fixme: find a better place for this
+export SCENARIO_OPENSTACK_NEUTRON=false  # fixme: find a better place for this
 export ATTEMPT_VM_MAC_CONVERSION=false  # fixme: find a better place for this
+CLI_CACHE=( $@ )
 
 # can't export assoc
 declare -A DO_ACTIONS=(
@@ -90,11 +91,8 @@ OPTIONS:
         Create a tarball of the resulting dataset and names it with a tag if
         provided by --archive-tag.
 
-    --check-flow-vlans
-        By default we don't create links between vlans found on ports and
-        vlans found in flows since it is valid for a flow to be tagged for
-        egress when there is no port tagged with that vlan. Since we have no
-        way to determine this we leave this check as optional.
+    --openstack
+        Create links between vlan flows and their expected bridge port vlan.
 
     --delete
         Delete datastore once finished (i.e. on exit).
@@ -165,8 +163,8 @@ while (($#)); do
         --attempt-vm-mac-conversion)
             ATTEMPT_VM_MAC_CONVERSION=true
             ;;
-        --check-flow-vlans)
-            CHECK_FLOW_VLANS=true
+        --openstack)
+            SCENARIO_OPENSTACK_NEUTRON=true
             ;;
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
@@ -422,6 +420,9 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
             exit 1
         fi
     done
+
+    # keep copy of cli command used to create dataset
+    echo "${CLI_CACHE[@]}" > $RESULTS_PATH_HOST/.cli_cache
 
     # then pre-load the caches
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."

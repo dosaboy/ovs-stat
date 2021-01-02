@@ -71,10 +71,6 @@ __get_port_ns_attach_info ()
                 $RESULTS_PATH_HOST/ovs/ports/$ns_port/namespace
             port_path="$RESULTS_PATH_HOST/ovs/ports/$ns_port"
         fi
-        mac="`get_ns_ip_addr_show $ns_name| \
-              grep -A 1 $port| \
-              sed -rn 's,.*link/ether\s+([[:alnum:]\:]+).+,\1,p'`"
-        echo $mac > $port_path/hwaddr
     fi
 }
 

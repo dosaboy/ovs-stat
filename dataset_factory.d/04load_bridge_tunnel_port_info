@@ -11,17 +11,14 @@ __get_tunnel_port_info ()
     local bridge="$1"
     local port="$2"
     local ovsdb_client_list="$3"
-    local mac
     local section
     local options
     local type
     local local_ip
     local remote_ip
+    local mac
 
-    mac=`get_ovs_ofctl_show $bridge| \
-         sed -r "s/^\s+.+\($port\):\s+addr:(.+)/\1/g;t;d"`
-    echo $mac > $RESULTS_PATH_HOST/ovs/ports/$port/hwaddr
-
+    mac=`cat $RESULTS_PATH_HOST/ovs/ports/$port/hwaddr`
     section=`sed -rn "/^mac_in_use\s+:\s+\"$mac\".*/,/^type\s+:\s+.+/p;" $ovsdb_client_list`
     echo "$section"| tail -n 1| egrep -q "^type\s+:\s+(vxlan|gre|geneve)" || return
 
@@ -35,12 +32,8 @@ __get_tunnel_port_info ()
     echo $remote_ip > $RESULTS_PATH_HOST/ovs/ports/$port/remote_ip
 }
 
-__load_bridge_port_macs ()
+__load_bridge_tunnel_port_info ()
 {
-    # loads mac addresses for ports on all bridges where mac was not found by
-    # other means. this is useful for e.g. tunnel endpoints whose info may only
-    # exist in ovs.
-
     local current_jobs=0
     local ovsdb_client_list_out
 
@@ -50,7 +43,6 @@ __load_bridge_port_macs ()
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         current_jobs=0
         for port in `get_ovs_bridge_ports $bridge`; do
-            [ -e "$RESULTS_PATH_HOST/ovs/ports/$port/hwaddr" ] && continue
             __get_tunnel_port_info $bridge $port $ovsdb_client_list_out &
             job_wait $((++current_jobs)) && wait
         done
@@ -59,5 +51,5 @@ __load_bridge_port_macs ()
 }
 
 # main()
-__load_bridge_port_macs 2>$RESULTS_PATH_HOST/error.$$
+__load_bridge_tunnel_port_info 2>$RESULTS_PATH_HOST/error.$$
 
