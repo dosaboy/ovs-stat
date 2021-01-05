@@ -24,8 +24,9 @@ export RESULTS_PATH_ROOT=
 # this is the host dir beneath root and can have >= 1
 export RESULTS_PATH_HOST=
 # defines whether to delete existing host data
-export FORCE=false
-# this is the optional datasource that is required if we want to (re)create a dataset for a given host
+export FORCE_RECREATE=false
+# otional datasource required if we want to create a dataset using captured
+# data e.g. sosreport.
 export OVS_FS_DATA_SOURCE=
 export ARCHIVE_TAG=
 export TREE_DEPTH=
@@ -188,7 +189,7 @@ while (($#)); do
             shift
             ;;
         --overwrite|--force)
-            FORCE=true
+            FORCE_RECREATE=true
             ;;
         -q|--quiet)
             DO_ACTIONS[QUIET]=true
@@ -222,7 +223,7 @@ while (($#)); do
             exit 0
             ;;
         *)
-            [ -e "$1" ] || { echo "ERROR: path '$1' does not exist"; exit 1; }
+            [ -d "$1" ] || { echo "ERROR: data source path '$1' does not exist"; exit 1; }
             OVS_FS_DATA_SOURCE=$1
             ;;
     esac
@@ -284,7 +285,7 @@ cleanup () {
         rm -rf $TMP_DATASTORE
     fi
     rm -rf $SCRATCH_AREA
-    [ -e "$COMMAND_CACHE_PATH" ] && rm -rf $COMMAND_CACHE_PATH
+    [ -d "$COMMAND_CACHE_PATH" ] && rm -rf $COMMAND_CACHE_PATH
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -e "\nDone."
     cleaned=true
     exit
@@ -303,31 +304,28 @@ elif ! [ "${RESULTS_PATH_ROOT:(-1)}" = "/" ]; then
     RESULTS_PATH_ROOT="${RESULTS_PATH_ROOT}/"
 fi
 
-# Ensure trailing slash
-if [ -n "$OVS_FS_DATA_SOURCE" ] && ! [ "${OVS_FS_DATA_SOURCE:(-1)}" = "/" ]; then
-    OVS_FS_DATA_SOURCE="${OVS_FS_DATA_SOURCE}/"
+if [ -n "$OVS_FS_DATA_SOURCE" ]; then
+    # Ensure trailing slash
+    if ! [ "${OVS_FS_DATA_SOURCE:(-1)}" = "/" ]; then
+        OVS_FS_DATA_SOURCE="${OVS_FS_DATA_SOURCE}/"
+    fi
 fi
 
-if ! [ -e "$OVS_FS_DATA_SOURCE" ] && $FORCE; then
-    echo "ERROR: need a valid data source when using --force (see --help)"
-    exit 1
-fi
-
-if ! ${DO_ACTIONS[CREATE_DATASET]} && ! [ -e $RESULTS_PATH_ROOT ]; then
+if ! ${DO_ACTIONS[CREATE_DATASET]} && ! [ -d $RESULTS_PATH_ROOT ]; then
     # no dataset found and not creating
     echo "ERROR: no dataset found at $RESULTS_PATH_ROOT"
-elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
+elif ${DO_ACTIONS[CREATE_DATASET]} && [ -d $RESULTS_PATH_ROOT ] && \
         ! [ -w $RESULTS_PATH_ROOT ]; then
     # dataset found but not writeable
     echo "ERROR: insufficient permissions to write to $RESULTS_PATH_ROOT"
     exit 1
-elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
+elif ${DO_ACTIONS[CREATE_DATASET]} && [ -d $RESULTS_PATH_ROOT ] && \
         [ -z "$TMP_DATASTORE" ]; then
 
     readarray -t dataset_hosts<<<"`ls -A $RESULTS_PATH_ROOT`"
     num_dataset_hosts=${#dataset_hosts[@]}
 
-    if [ -d "$OVS_FS_DATA_SOURCE" ] && $FORCE; then
+    if $FORCE_RECREATE; then
         path_to_delete=
         # dataset found and we want to recreate it
         if ((num_dataset_hosts>1)); then
@@ -353,11 +351,11 @@ elif ${DO_ACTIONS[CREATE_DATASET]} && [ -e $RESULTS_PATH_ROOT ] && \
                 path_to_delete=
             fi
         fi
-        if [ -n "$path_to_delete" ] && [ -e "$path_to_delete" ]; then
+        if [ -n "$path_to_delete" ] && [ -d "$path_to_delete" ]; then
             ${DO_ACTIONS[QUIET]} || echo "Deleting $path_to_delete"
             rm -rf $path_to_delete
         fi
-    elif [ -e "$OVS_FS_DATA_SOURCE" ] && ! [ -e "$RESULTS_PATH_ROOT`get_hostname`" ]; then
+    elif [ -d "$OVS_FS_DATA_SOURCE" ] && ! [ -d "$RESULTS_PATH_ROOT`get_hostname`" ]; then
         # continue
         :
     else
