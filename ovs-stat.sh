@@ -164,7 +164,9 @@ while (($#)); do
         --attempt-vm-mac-conversion)
             ATTEMPT_VM_MAC_CONVERSION=true
             ;;
-        --openstack)
+        --openstack|--check-flow-vlans)
+            # add deprecation notice and continue
+            [ "$1" = "--check-flow-vlans" ] && echo "WARNING: $1 option is deprecated, use --openstack instead"
             SCENARIO_OPENSTACK_NEUTRON=true
             ;;
         --delete)
@@ -221,6 +223,10 @@ while (($#)); do
         -h|--help)
             usage
             exit 0
+            ;;
+        # Add deprecated opts here to avoid backcompat issues
+        --conntrack)
+            [ "$1" = "--conntrack" ] && echo "WARNING: $1 option is deprecated and is now enabled always"
             ;;
         *)
             [ -d "$1" ] || { echo "ERROR: data source path '$1' does not exist"; exit 1; }
