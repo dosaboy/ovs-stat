@@ -10,7 +10,7 @@ __get_port_vlan ()
     local port=$2
 
     readarray -t vlans<<<"`get_ovs_vsctl_show $bridge| \
-        grep -A 1 \"Port \\\"$port\\\"\"| \
+        egrep -A 1 \"Port \\\"?$port\\\"?\"| \
             sed -rn 's/.+tag:\s+([[:digit:]]+)/\1/p'| \
             sort -n | uniq`"
     ((${#vlans[@]})) && [ -n "${vlans[0]}" ] || return
