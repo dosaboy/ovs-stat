@@ -190,13 +190,20 @@ get_ns_netstat ()
 get_ovs_ofctl_dump_flows ()
 {
     local bridge="$1"
-    local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_dump-flows_${bridge}
+    local of_protocol="`get_bridge_of_protocol $bridge`"
+
+    if [ -n "$of_protocol" ]; then
+        sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_-O_${of_protocol}_dump-flows_$bridge
+    else
+        sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_dump-flows_$bridge
+    fi
+
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
 
-    local cache=$COMMAND_CACHE_PATH/cache.ofctl_dump_flows_${bridge}
+    local cache=$COMMAND_CACHE_PATH/cache.`basename $sos`
     local rc=${cache}.rc
     ( flock -e 200
       echo 0 > $rc
@@ -218,16 +225,36 @@ get_ovs_ofctl_dump_flows ()
     return `cat $rc`
 }
 
+get_bridge_of_protocol ()
+{
+    local bridge=${1:-""}
+
+    get_ovs_vsctl_list_bridge $bridge| \
+        grep protocols| \
+        sed -rn 's/protocols\s+:\s+\[(.*)\]$/\1/p'| \
+        tail -n 1| sed -r 's/,\s+/\n/g'| \
+        sort -h| head -n 1
+    # note: sosreport seems to always use the lowest protocol hence ^^
+}
+
 get_ovs_ofctl_show ()
 {
     local bridge="$1"
-    local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_show_${bridge}
+    local sos
+    local of_protocol="`get_bridge_of_protocol $bridge`"
+
+    if [ -n "$of_protocol" ]; then
+        sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_-O_${of_protocol}_show_$bridge
+    else
+        sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_show_$bridge
+    fi
+
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
 
-    local cache=$COMMAND_CACHE_PATH/cache.ofctl_show_${bridge}
+    local cache=$COMMAND_CACHE_PATH/cache.`basename $sos`
     local rc=${cache}.rc
     ( flock -e 200
       echo 0 > $rc
@@ -289,6 +316,32 @@ get_ovs_appctl_fdbshow ()
           cat $cache
       else
           ovs-appctl fdb/show $bridge > $cache
+          echo $? > $rc
+          cat $cache
+      fi
+    ) 200>$LOCKPATH
+    return `cat $rc`
+}
+
+get_ovs_vsctl_list_bridge ()
+{
+    local bridge=${1:-""}
+    local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_list_bridge
+    if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
+        cat $sos
+        return
+    fi
+
+    [ -z "$bridge" ] || sos="${sos}_$bridge"
+
+    local cache=$COMMAND_CACHE_PATH/cache.`basename $sos`
+    local rc=${cache}.rc
+    ( flock -e 200
+      echo 0 > $rc
+      if [ -r "$cache" ]; then
+          cat $cache
+      else
+          ovs-vsctl list bridge $bridge > $cache
           echo $? > $rc
           cat $cache
       fi
