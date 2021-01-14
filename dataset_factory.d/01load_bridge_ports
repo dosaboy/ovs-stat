@@ -6,18 +6,25 @@ for l in `find $CWD/common -type f`; do source $l; done
 
 __get_port_info ()
 {
-    local port=$1
-    local bridge=$2
-    local name=${port##*:}
-    local id=${port%%:*}
-    local mac
+    local mac=$1
+    local of_id=$2
+    local bridge=$3
+    local name
+
+    # enure bridge is not included in returned value
+    name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| awk '$1=="name" {print $3}'| egrep -v "^$bridge$"| tr -d '"'`
+
+    if [ -z "$name" ]; then
+        echo "INFO: unable to resolve name of port with id $of_id mac $mac on $bridge - skipping port"
+        return 0
+    fi
 
     mkdir -p $RESULTS_PATH_HOST/ovs/ports/$name
     ln -s ../../bridges/$bridge \
         $RESULTS_PATH_HOST/ovs/ports/$name/bridge
     ln -s ../../../ports/$name \
-        $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/$id
-    echo $id > $RESULTS_PATH_HOST/ovs/ports/$name/id
+        $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports/$of_id
+    echo $of_id > $RESULTS_PATH_HOST/ovs/ports/$name/id
 
     # is it actually a linux port - create fwd and rev ref
     if `get_ip_link_show| grep -q $name`; then
@@ -28,8 +35,6 @@ __get_port_info ()
             $RESULTS_PATH_HOST/linux/ports/$name/ovs
     fi
 
-    mac=`get_ovs_ofctl_show $bridge| \
-         sed -r "s/^\s+.+\($name\):\s+addr:(.+)/\1/g;t;d"`
     echo $mac > $RESULTS_PATH_HOST/ovs/ports/$name/hwaddr
 }
 
@@ -44,15 +49,23 @@ __load_bridge_ports ()
     # TODO: should x-ref with ovs-vsctl list-ports <bridge> so that we have a
     #       way to alert.
     local current_jobs=0
+    local mac
+    local port_of_id
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         current_jobs=0
         mkdir -p $RESULTS_PATH_HOST/ovs/bridges/$bridge/ports
-        readarray -t ports<<<"`get_ovs_ofctl_show $bridge| \
-            sed -rn 's/^\s+([[:digit:]]+)\((.+)\):\s+.+/\1:\2/p'`"
+
+        # we list ports my mac since that is known to be unique (port names
+        # can be abridged).
+        readarray -t ports<<<"`get_ovs_ofctl_show $bridge| grep -v LOCAL| \
+            sed -rn 's/^\s+([[:digit:]]+)\(.+\):\s+addr:(.+)/\1 \2/p'`"
+
         ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
         for port in "${ports[@]}"; do
-            __get_port_info $port $bridge &
+            mac=${port##* }
+            port_of_id=${port%% *}
+            __get_port_info $mac $port_of_id $bridge &
             job_wait $((++current_jobs)) && wait
         done
         wait
