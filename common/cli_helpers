@@ -27,13 +27,29 @@ cache_preload ()
     get_ns_ip_addr_show_all &>/dev/null
 }
 
+# TODO: consolidate the following two functions
 get_bridge_of_version ()
 {
+    # get bridge openflow protocol version
     local bridge="$1"
     local ver="`ovs-vsctl get bridge $bridge protocols| jq -r '.| first'`"
     [ -z "$ver" ] || [ "$ver" = "null" ] && return 0
     echo -n $ver
     return 0
+}
+
+get_bridge_of_protocol_version ()
+{
+    # get bridge openflow protocol version
+    # note: sosreport seems to always use the lowest available so thats what we
+    #       return.
+    local bridge=${1:-""}
+
+    get_ovs_vsctl_list_bridge $bridge| \
+        grep protocols| \
+        sed -rn 's/protocols\s+:\s+\[(.*)\]$/\1/p'| \
+        tail -n 1| sed -r 's/,\s+/\n/g'| \
+        sort -h| head -n 1| tr -d '"'
 }
 
 get_ps ()
@@ -190,7 +206,7 @@ get_ns_netstat ()
 get_ovs_ofctl_dump_flows ()
 {
     local bridge="$1"
-    local of_protocol="`get_bridge_of_protocol $bridge`"
+    local of_protocol="`get_bridge_of_protocol_version $bridge`"
 
     if [ -n "$of_protocol" ]; then
         sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_-O_${of_protocol}_dump-flows_$bridge
@@ -225,23 +241,11 @@ get_ovs_ofctl_dump_flows ()
     return `cat $rc`
 }
 
-get_bridge_of_protocol ()
-{
-    local bridge=${1:-""}
-
-    get_ovs_vsctl_list_bridge $bridge| \
-        grep protocols| \
-        sed -rn 's/protocols\s+:\s+\[(.*)\]$/\1/p'| \
-        tail -n 1| sed -r 's/,\s+/\n/g'| \
-        sort -h| head -n 1
-    # note: sosreport seems to always use the lowest protocol hence ^^
-}
-
 get_ovs_ofctl_show ()
 {
     local bridge="$1"
     local sos
-    local of_protocol="`get_bridge_of_protocol $bridge`"
+    local of_protocol="`get_bridge_of_protocol_version $bridge`"
 
     if [ -n "$of_protocol" ]; then
         sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-ofctl_-O_${of_protocol}_show_$bridge
