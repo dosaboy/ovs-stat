@@ -331,12 +331,13 @@ get_ovs_vsctl_list_bridge ()
 {
     local bridge=${1:-""}
     local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_list_bridge
+
+    [ -z "$bridge" ] || sos="${sos}_$bridge"
+
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
         return
     fi
-
-    [ -z "$bridge" ] || sos="${sos}_$bridge"
 
     local cache=$COMMAND_CACHE_PATH/cache.`basename $sos`
     local rc=${cache}.rc
