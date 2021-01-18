@@ -7,6 +7,10 @@ for l in `find $CWD/common -type f`; do source $l; done
 __get_port_ns_attach_info ()
 {
     local port="$1"
+    # NOTE: this is an Openstackism whereby a veth pair with the form
+    #       tapxxxxxxxx-xx/ns-xxxxxxxx-xx is created and therefore any other
+    #       naming convention won't be caught here.
+    # FIXME: we need a better way to do this.
     local port_suffix=${port##tap}
     local ns_id=""
     local ns_name=""
@@ -63,13 +67,11 @@ __get_port_ns_attach_info ()
                 $RESULTS_PATH_HOST/linux/namespaces/$ns_name/ports/$ns_port
             ln -s ../../../linux/namespaces/$ns_name \
                 $RESULTS_PATH_HOST/linux/ports/$ns_port/namespace
-            port_path="$RESULTS_PATH_HOST/linux/ports/$ns_port"
         else
             ln -s ../../../../ovs/ports/$port \
                 $RESULTS_PATH_HOST/linux/namespaces/$ns_name/ports/$ns_port
             ln -s ../../../linux/namespaces/$ns_name \
                 $RESULTS_PATH_HOST/ovs/ports/$ns_port/namespace
-            port_path="$RESULTS_PATH_HOST/ovs/ports/$ns_port"
         fi
     fi
 }

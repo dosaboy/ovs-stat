@@ -6,13 +6,31 @@ for l in `find $CWD/common -type f`; do source $l; done
 
 __get_port_info ()
 {
-    local mac=$1
-    local of_id=$2
-    local bridge=$3
+    local of_id=$1
+    local of_port=$2
+    local mac=$3
+    local bridge=$4
     local name
 
-    # enure bridge is not included in returned value
-    name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| awk '$1=="name" {print $3}'| egrep -v "^$bridge$"| tr -d '"'`
+    # Ports that have this mac address are likely attached to a network
+    # namespace (ovs 2.9) so attempt to get mac from there. Note that this is
+    # only expected for ports directly attached and not via a veth pair.
+    if [[ $mac == "00:00:00:00:00:00" ]]; then
+        name=`get_ovsdb_client_list_dump| egrep -B 5 "ofport\s+: $of_id"| awk '$1=="name" {print $3}'| tr -d '"'`
+        # won't be visible outside of ns so have to search all
+        ns_name="`get_ns_ip_addr_show_all| egrep "netns:|$name"| grep -B 1 $name| head -n 1`"
+        ns_name=${ns_name##netns: }
+        # attempt to get port mac from namespace
+        if [ -n "$ns_name" ]; then
+            mac="`get_ns_ip_addr_show $ns_name| \
+                  grep -A 1 "$name:"| \
+                  sed -rn 's,.+link/ether\s+([[:alnum:]\:]+)\s+.+,\1,p'`"
+        fi
+        # else just ignore and use ovs mac
+    else
+        # ensure bridge is not included in returned value
+        name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| awk '$1=="name" {print $3}'| egrep -v "^$bridge$"| tr -d '"'`
+    fi
 
     if [ -z "$name" ]; then
         echo "INFO: unable to resolve name of port with id $of_id mac $mac on $bridge - skipping port"
@@ -51,6 +69,7 @@ __load_bridge_ports ()
     local current_jobs=0
     local mac
     local port_of_id
+    local name
 
     for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
         current_jobs=0
@@ -59,13 +78,14 @@ __load_bridge_ports ()
         # we list ports my mac since that is known to be unique (port names
         # can be abridged).
         readarray -t ports<<<"`get_ovs_ofctl_show $bridge| grep -v LOCAL| \
-            sed -rn 's/^\s+([[:digit:]]+)\(.+\):\s+addr:(.+)/\1 \2/p'`"
+            sed -rn 's/^\s+([[:digit:]]+)\((.+)\):\s+addr:(.+)/\1 \2 \3/p'`"
 
         ((${#ports[@]})) && [ -n "${ports[0]}" ] || continue
         for port in "${ports[@]}"; do
-            mac=${port##* }
-            port_of_id=${port%% *}
-            __get_port_info $mac $port_of_id $bridge &
+            port_of_id=`echo $port| cut -d ' ' -f 1`
+            name=`echo $port| cut -d ' ' -f 2`
+            mac=`echo $port| cut -d ' ' -f 3`
+            __get_port_info $port_of_id $name $mac $bridge &
             job_wait $((++current_jobs)) && wait
         done
         wait
