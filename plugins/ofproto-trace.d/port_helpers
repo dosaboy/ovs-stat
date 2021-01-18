@@ -60,8 +60,8 @@ ofproto-trace.port.all ()
 
     if [[ -z $protocol ]] || [[ $protocol = dhcp ]]; then
         [[ -n $protocol ]] && echo "" || echo -e "\n[dhcp]"
-        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=68,tp_dst=67"
-        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=67,tp_dst=68"
+        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=68,udp_dst=67"
+        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=67,udp_dst=68"
     fi
 
     if [[ -z $protocol ]]; then
