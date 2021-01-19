@@ -21,7 +21,6 @@ ofproto-trace.port.all ()
     fi
 
     local of_id=`cat $port/id`
-    local of_id_hex=`printf %x $of_id`
     local bridge=`readlink $port/bridge| xargs basename`
 
     if [ "${mac:0:5}" = "fe:16" ]; then
@@ -60,8 +59,7 @@ ofproto-trace.port.all ()
 
     if [[ -z $protocol ]] || [[ $protocol = dhcp ]]; then
         [[ -n $protocol ]] && echo "" || echo -e "\n[dhcp]"
-        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=68,udp_dst=67"
-        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,reg5=0x${of_id_hex},in_port=${of_id},tp_src=67,udp_dst=68"
+        echo "sudo ovs-appctl ofproto/trace ${bridge} udp,in_port=${of_id},dl_src=${mac},dl_dst=ff:ff:ff:ff:ff:ff,nw_src=0.0.0.0,nw_dst=255.255.255.255,udp_src=68,udp_dst=67"
     fi
 
     if [[ -z $protocol ]]; then
