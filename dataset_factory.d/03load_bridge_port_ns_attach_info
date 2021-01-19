@@ -7,45 +7,47 @@ for l in `find $CWD/common -type f`; do source $l; done
 __get_port_ns_attach_info ()
 {
     local port="$1"
-    # NOTE: this is an Openstackism whereby a veth pair with the form
-    #       tapxxxxxxxx-xx/ns-xxxxxxxx-xx is created and therefore any other
-    #       naming convention won't be caught here.
-    # FIXME: we need a better way to do this.
-    local port_suffix=${port##tap}
     local ns_id=""
     local ns_name=""
     local ns_port=""
     local mac
+    local peer_idx=""
 
-    # first try linux
-    ns_id=`get_ip_link_show| grep -A 1 " $port:"| \
-               sed -r 's/.+link-netnsid ([[:digit:]]+)\s*.*/\1/g;t;d'`
-    if [ -n "$ns_id" ]; then
-        ns_name=`get_ip_netns| grep "(id: $ns_id)"| \
-                    sed -r 's/\s+\(id:\s+.+\)//g'`
+    # first establish if port is part of veth pair
+    peer_idx=`get_ip_link_show| grep "$port"| sed -rn "s/.+\s+$port@if([[:digit:]]+):.+/\1/p"`
+    if [[ -n $peer_idx ]]; then
+	# get namespace id
+        ns_id=`get_ip_link_show| grep -A 1 "$port@if${peer_idx}:"| \
+                   sed -rn 's/.+link-netnsid\s+([[:digit:]]+)\s*.*/\1/p'`
+        if [[ -n $ns_id ]]; then
+            ns_name=`get_ip_netns| grep "(id: $ns_id)"| \
+                        sed -r 's/\s+\(id:\s+.+\)//g'`
+            if [[ -z $ns_name ]]; then
+                echo "WARNING: unable to identify network namespace for port $port veth-peer"
+            fi
+        fi
     else
-        # then try searching all ns since ovs does not provide info about which namespace a port maps to.
-        ns_name="`get_ns_ip_addr_show_all| egrep "netns:|${port_suffix}"| grep -B 1 $port_suffix| head -n 1`" || true
-        ns_name=${ns_name##netns: }
+        # otherwise port will not be visible in ip link show so need to go
+        # direct and search all ns.
+        ns_name="`get_ns_ip_addr_show_all| egrep "netns:|$port:"| grep -B 1 "$port:"| head -n 1`" || true
+        ns_name=${ns_name##netns: }   
     fi
 
     [ -n "$ns_name" ] || return 0
 
     mkdir -p $RESULTS_PATH_HOST/linux/namespaces/$ns_name/ports
-    if_id=`get_ip_link_show| grep $port| sed -rn "s/.+${port}@if([[:digit:]]+):\s+.+/\1/p"`
 
-    if [ -n "$if_id" ]; then
-        ns_port="`get_ns_ip_addr_show $ns_name| 
-               sed -rn \"s,^${if_id}:\s+(.+)@[[:alnum:]]+:\s+.+,\1,p\"`"
+    if [ -n "$peer_idx" ]; then
+        ns_port=`get_ns_ip_addr_show $ns_name| \
+                      sed -rn "s/^$peer_idx:\s+(.+)@if[[:digit:]]+:\s+.+/\1/p"`
     else
-        ns_port="`get_ns_ip_addr_show $ns_name| 
-               sed -rn \"s,[[:digit:]]+:\s+(.*${port_suffix})(@[[:alnum:]]+)?:\s+.+,\1,p\"`"
+        `get_ns_ip_addr_show $ns_name| grep -q " $port:"` && ns_port=$port
     fi
 
     [ -n "$ns_port" ] || return 0
 
-    if [ "$ns_port" != "$port" ]; then
-        # it is a veth peer
+    if [ "$peer_idx" ]; then
+        # veth pair
         if [ -e "$RESULTS_PATH_HOST/linux/ports/$port" ]; then
             mkdir -p $RESULTS_PATH_HOST/linux/namespaces/$ns_name/ports/$ns_port
             ln -s ../../../../ports/$port \
@@ -55,7 +57,7 @@ __get_port_ns_attach_info ()
                 $RESULTS_PATH_HOST/linux/ports/$port/veth_peer
 
             mac="`get_ns_ip_addr_show $ns_name| \
-                  grep -A 1 $port_suffix| \
+                  grep -A 1 $ns_port| \
                   sed -rn 's,.*link/ether\s+([[:alnum:]\:]+).+,\1,p'`"
             echo $mac > $RESULTS_PATH_HOST/linux/ports/$port/veth_peer/hwaddr
         else
