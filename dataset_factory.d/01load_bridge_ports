@@ -16,7 +16,8 @@ __get_port_info ()
     # namespace (ovs 2.9) so attempt to get mac from there. Note that this is
     # only expected for ports directly attached and not via a veth pair.
     if [[ $mac == "00:00:00:00:00:00" ]]; then
-        name=`get_ovsdb_client_list_dump| egrep -B 5 "ofport\s+: $of_id$"| awk '$1=="name" {print $3}'| tr -d '"'`
+        # NOTE: of_id are not unique in ovsdb so hopefully filtering on (abbreviated) port name is ok
+        name=`get_ovsdb_client_list_dump| egrep -B 5 "ofport\s+: $of_id$"| grep $of_port| awk '$1=="name" {print $3}'| tr -d '"'`
         # won't be visible outside of ns so have to search all
         ns_name="`get_ns_ip_addr_show_all| egrep "netns:|$name"| grep -B 1 $name| head -n 1`"
         ns_name=${ns_name##netns: }
