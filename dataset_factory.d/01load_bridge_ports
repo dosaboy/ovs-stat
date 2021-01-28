@@ -30,7 +30,9 @@ __get_port_info ()
         # else just ignore and use ovs mac
     else
         # ensure bridge is not included in returned value
-        name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| awk '$1=="name" {print $3}'| egrep -v "^$bridge$"| tr -d '"'`
+        name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| \
+                  awk '$1=="name" {print $3}'| grep $of_port| \
+                  egrep -v "^$bridge$"| tr -d '"'`
     fi
 
     if [ -z "$name" ]; then
