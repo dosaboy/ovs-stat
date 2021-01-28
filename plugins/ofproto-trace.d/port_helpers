@@ -10,8 +10,11 @@ ofproto-trace.port.all ()
     local namespace=
     local ext_addr=1.1.1.1
     local port=`_find_port $id_key` || return 0
-    local name=`basename $port`
+    local name
 
+    [[ -n "$port" ]] || return
+
+    name=`basename $port`
     mac=`cat $port/hwaddr`
     if [ -e "$port/vlan" ]; then
         vlan=`readlink $port/vlan| xargs basename`
