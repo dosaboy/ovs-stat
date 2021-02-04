@@ -4,6 +4,27 @@ TRAP_ERROR_MSG="failed to get bridge ports"
 # lib
 for l in `find $CWD/common -type f`; do source $l; done
 
+__get_port_name_filterered ()
+{
+    local of_port=$1
+    shift
+    local -a names=( $@ )
+
+    # best way i could come up with to filter out interfaces and their vlan
+    # aliases e.g. bond0 and bond0.123.
+    if [[ ((${#names[@]})) ]] && [[ -n ${names[0]} ]]; then
+        if ((${#names[@]}==1)); then
+            echo ${names[0]}
+            return 0
+        else
+            for _name in ${names[@]}; do
+                echo $_name| egrep -o "$of_port$"
+            done| sort -u
+            return 0
+        fi
+    fi
+}
+
 __get_port_info ()
 {
     local of_id=$1
@@ -17,7 +38,8 @@ __get_port_info ()
     # only expected for ports directly attached and not via a veth pair.
     if [[ $mac == "00:00:00:00:00:00" ]]; then
         # NOTE: of_id are not unique in ovsdb so hopefully filtering on (abbreviated) port name is ok
-        name=`get_ovsdb_client_list_dump| egrep -B 5 "ofport\s+: $of_id$"| grep $of_port| awk '$1=="name" {print $3}'| tr -d '"'`
+        readarray -t names <<< `get_ovs_vsctl_list interface| egrep -B 5 "ofport\s+: $of_id$"| grep "$of_port"| awk '$1=="name" {print $3}'| tr -d '"'`
+        name=`__get_port_name_filterered $of_port ${names[@]}`
         # won't be visible outside of ns so have to search all
         ns_name="`get_ns_ip_addr_show_all| egrep "netns:|$name"| grep -B 1 $name| head -n 1`"
         ns_name=${ns_name##netns: }
@@ -30,9 +52,9 @@ __get_port_info ()
         # else just ignore and use ovs mac
     else
         # ensure bridge is not included in returned value
-        name=`get_ovsdb_client_list_dump| grep -A 5 "$mac"| \
-                  awk '$1=="name" {print $3}'| grep $of_port| \
-                  egrep -v "^$bridge$"| tr -d '"'`
+        readarray -t names <<< `get_ovs_vsctl_list interface| egrep "^mac_in_use |^name "| grep -A 1 "$mac"| \
+                                   awk '$1=="name" {print $3}'| grep $of_port| egrep -v "^$bridge$"| tr -d '"'`
+        name=`__get_port_name_filterered $of_port ${names[@]}`
     fi
 
     if [ -z "$name" ]; then

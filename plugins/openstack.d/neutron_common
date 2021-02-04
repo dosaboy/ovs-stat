@@ -1,7 +1,9 @@
 #!/bin/bash
 openstack.local-vlans.info ()
 {
-    readlink $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/vlan| xargs -l basename| sort -un    
+    ((`ls -1 $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/| wc -l`)) || return 0
+    ((`find $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/ -name vlan| wc -l`)) || return 0
+    find $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/ -name vlan| xargs -l readlink| xargs -l basename| sort -un
 }
 # default
 openstack.local-vlans ()

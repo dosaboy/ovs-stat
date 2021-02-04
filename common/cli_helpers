@@ -45,7 +45,7 @@ get_bridge_of_protocol_version ()
     #       return.
     local bridge=${1:-""}
 
-    get_ovs_vsctl_list_bridge $bridge| \
+    get_ovs_vsctl_list bridge $bridge| \
         grep protocols| \
         sed -rn 's/protocols\s+:\s+\[(.*)\]$/\1/p'| \
         tail -n 1| sed -r 's/,\s+/\n/g'| \
@@ -327,12 +327,13 @@ get_ovs_appctl_fdbshow ()
     return `cat $rc`
 }
 
-get_ovs_vsctl_list_bridge ()
+get_ovs_vsctl_list ()
 {
-    local bridge=${1:-""}
-    local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_list_bridge
+    local table=$1
+    local arg=${2:-}
+    local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_list_${table}
 
-    [ -z "$bridge" ] || sos="${sos}_$bridge"
+    [ -z "$arg" ] || sos="${sos}_$arg"
 
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
         cat $sos
@@ -346,7 +347,7 @@ get_ovs_vsctl_list_bridge ()
       if [ -r "$cache" ]; then
           cat $cache
       else
-          ovs-vsctl list bridge $bridge > $cache
+          ovs-vsctl list $table $arg > $cache
           echo $? > $rc
           cat $cache
       fi
