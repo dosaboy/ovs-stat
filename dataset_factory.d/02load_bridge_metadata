@@ -1,0 +1,22 @@
+#!/bin/bash -u
+TRAP_ERROR_MSG="failed to get bridge metadata"
+
+# lib
+for l in `find $CWD/common -type f`; do source $l; done
+
+__load_bridge_metadata ()
+{
+    local table
+
+    for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+        table=$RESULTS_PATH_HOST/ovs/db/bridge_$bridge
+        if [[ -r $table ]]; then
+            awk '$1=="datapath_id" {print $3}' $table| tr -d '"' > \
+                $RESULTS_PATH_HOST/ovs/bridges/$bridge/dpid
+        fi
+    done
+}
+
+# main()
+__load_bridge_metadata 2>$RESULTS_PATH_HOST/error.$$
+

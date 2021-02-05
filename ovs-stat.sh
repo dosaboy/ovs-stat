@@ -452,10 +452,37 @@ if ${DO_ACTIONS[SHOW_NEUTRON_ERRORS]}; then
     fi
 
     declare -A cookie_count=()
+    declare -A dp_id_count=()
     for bridge in `ls -1 $RESULTS_PATH_HOST/ovs/bridges`; do
         c=`ls -1 $RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies| wc -l`
         ((c<2)) || cookie_count[$bridge]=$c
+
+        # Ensure that all bridges have unique datapath-id (see LP 1697243)
+        dp_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/dpid
+        if [[ -r $dp_path ]]; then
+            dp_id=`cat $dp_path`
+            if [[ -z ${dp_id_count[$dp_id]:-""} ]]; then
+                dp_id_count[$dp_id]=1
+            else
+                c=${dp_id_count[$dp_id]}
+                dp_id_count[$dp_id]=$((c+1))
+            fi
+        fi
     done
+
+    dpid_warning=false
+    for dpid in ${!dp_id_count[@]}; do
+        ((${dp_id_count[$dpid]} > 1)) || continue
+        dpid_warning=true
+    done
+
+    if $dpid_warning; then
+        echo -e "WARNING: there are multiple bridges with the same datapath_id\n"
+        for dpid in ${!dp_id_count[@]}; do
+            echo "  $dpid (${dp_id_count[$dpid]})"
+        done
+        echo ""
+    fi
 
     if ((${#cookie_count[@]})); then
         errors_found=true

@@ -1,0 +1,23 @@
+#!/bin/bash -u
+TRAP_ERROR_MSG="failed to get ovs db tables"
+
+# lib
+for l in `find $CWD/common -type f`; do source $l; done
+
+__load_ovs_db_table ()
+{
+    local table=$1
+    local arg=${2:-""}
+    local record=$table
+
+    [[ -z $arg ]] || record=${table}_$arg
+    get_ovs_vsctl_list $table $arg > $RESULTS_PATH_HOST/ovs/db/$record
+}
+
+# main()
+mkdir -p $RESULTS_PATH_HOST/ovs/db
+__load_ovs_db_table Open_vSwitch 2>$RESULTS_PATH_HOST/error.$$
+for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
+    __load_ovs_db_table bridge $bridge 2>$RESULTS_PATH_HOST/error.$$
+done
+
