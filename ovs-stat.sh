@@ -435,7 +435,9 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
         # fallback for running from git source
         repo_info=`git rev-parse --short HEAD 2>/dev/null` || repo_info="unknown" 
     fi
-    echo -e "version: ${SNAP_REVISION:-"development"}\n  repo-info: $repo_info" > $RESULTS_PATH_HOST/.version
+    echo "source: https://github.com/dosaboy/ovs-stat" > $RESULTS_PATH_HOST/.version
+    echo "snap-version: ${SNAP_REVISION:-"development"}" >> $RESULTS_PATH_HOST/.version
+    echo "repo-info: $repo_info" >> $RESULTS_PATH_HOST/.version
 
     # then pre-load the caches
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
