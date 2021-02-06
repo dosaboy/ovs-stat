@@ -11,6 +11,7 @@ grade: stable
 base: core18
 environment:
   TMPDIR: $SNAP_COMMON/tmp
+  REPO_INFO_PATH: $SNAP/repo-info
 
 apps:
   ovs-stat:
@@ -21,3 +22,6 @@ parts:
     source: .
     plugin: dump
     stage-packages: [coreutils, bsdmainutils, tree, openvswitch-switch, jq]
+    override-build: |
+      git rev-parse --short HEAD > repo-info
+      snapcraftctl build

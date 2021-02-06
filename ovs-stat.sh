@@ -428,6 +428,15 @@ if ${DO_ACTIONS[CREATE_DATASET]}; then
     # keep copy of cli command used to create dataset
     echo "${CLI_CACHE[@]}" > $RESULTS_PATH_HOST/.cli_cache
 
+    if [[ -n ${REPO_INFO_PATH:-""} ]] && [[ -r $REPO_INFO_PATH ]]; then
+        # available when running as snap
+        repo_info=`cat $REPO_INFO_PATH`
+    else
+        # fallback for running from git source
+        repo_info=`git rev-parse --short HEAD 2>/dev/null` || repo_info="unknown" 
+    fi
+    echo -e "version: ${SNAP_REVISION:-"development"}\n  repo-info: $repo_info" > $RESULTS_PATH_HOST/.version
+
     # then pre-load the caches
     ${DO_ACTIONS[SHOW_SUMMARY]} && echo -en "\nPre-loading caches..."
     ${DO_ACTIONS[CREATE_DATASET]} && cache_preload
