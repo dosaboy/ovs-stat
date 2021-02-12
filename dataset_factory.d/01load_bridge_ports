@@ -25,7 +25,33 @@ __get_port_name_filterered ()
     fi
 }
 
-__get_port_info ()
+
+__get_ovs_vsctl_list ()
+{
+    # Older sosreports will not have get_ovs_vsctl_list $table so this provides
+    # a fallback.
+
+    local table=$1
+    if `get_ovs_vsctl_list $table &>/dev/null`; then
+        get_ovs_vsctl_list $table
+        return
+    fi
+
+    local scratch_path=`get_scratch_path ${of_port}_port_name`
+    mkdir -p $scratch_path
+
+    local idx1=`get_ovsdb_client_list_dump| grep -n "Interface table"|cut -f1 -d:`
+    local idx2=`get_ovsdb_client_list_dump| tail -n+$((idx1+1))| grep -n " table"| head -n 1|cut -f1 -d:`
+
+    if [[ -z idx2 ]]; then
+        get_ovsdb_client_list_dump| tail -n+$idx1 > $scratch_path/ovsdb_client_list_dump
+    else
+        idx2=$((idx1+idx2))
+        get_ovsdb_client_list_dump| sed -n "$idx1,$((idx2-1))p"
+    fi
+}
+
+__get_port_name ()
 {
     local of_id=$1
     local of_port=$2
@@ -38,7 +64,7 @@ __get_port_info ()
     # only expected for ports directly attached and not via a veth pair.
     if [[ $mac == "00:00:00:00:00:00" ]]; then
         # NOTE: of_id are not unique in ovsdb so hopefully filtering on (abbreviated) port name is ok
-        readarray -t names <<< `get_ovs_vsctl_list interface| egrep -B 5 "ofport\s+: $of_id$"| grep "$of_port"| awk '$1=="name" {print $3}'| tr -d '"'`
+        readarray -t names <<< `__get_ovs_vsctl_list interface| egrep -B 5 "ofport\s+: $of_id$"| grep "$of_port"| awk '$1=="name" {print $3}'| tr -d '"'`
         name=`__get_port_name_filterered $of_port ${names[@]}`
         # won't be visible outside of ns so have to search all
         ns_name="`get_ns_ip_addr_show_all| egrep "netns:|$name"| grep -B 1 $name| head -n 1`"
@@ -52,11 +78,24 @@ __get_port_info ()
         # else just ignore and use ovs mac
     else
         # ensure bridge is not included in returned value
-        readarray -t names <<< `get_ovs_vsctl_list interface| egrep "^mac_in_use |^name "| grep -A 1 "$mac"| \
+        readarray -t names <<< `__get_ovs_vsctl_list interface| egrep "^mac_in_use |^name "| grep -A 1 "$mac"| \
                                    awk '$1=="name" {print $3}'| grep $of_port| egrep -v "^$bridge$"| tr -d '"'`
         name=`__get_port_name_filterered $of_port ${names[@]}`
     fi
 
+    echo $name
+}
+
+
+__get_port_info ()
+{
+    local of_id=$1
+    local of_port=$2
+    local mac=$3
+    local bridge=$4
+    local name
+
+    name=`__get_port_name $of_id $of_port $mac $bridge`
     if [ -z "$name" ]; then
         echo "INFO: unable to resolve name of port with id $of_id mac $mac on $bridge - skipping port"
         return 0
