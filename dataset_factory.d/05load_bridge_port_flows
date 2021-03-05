@@ -133,7 +133,7 @@ __get_bridge_nw_src_flows ()
     if [ -s "$nw_src_out.tmp" ]; then
         sed -r 's/.+nw_src=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $nw_src_out.tmp| sort -u > $nw_src_out
         while read nw_src_addr; do
-            egrep "nw_src=${nw_src_addr}(/[0-9]+)?" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
+            egrep "nw_src=${nw_src_addr}(/[0-9]+)?[ ,]+" $bridge_flows_root/flows > $nw_src_root/$nw_src_addr
         done < $nw_src_out
     fi
 }
