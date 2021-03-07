@@ -12,8 +12,8 @@ fi
 
 if [ -z "$method" ]; then
     echo -e "Choose one of the following:\n"
-    declare -f| sed -rn "s/^($class\..+)\s+\(\).*/\1/p"
+    declare -f| sed -rn "s/^__entry_point__.($class\..+)\s+\(\).*/\1/p"
 else
-    eval ${class}${method}${property} $value
+    eval __entry_point__.${class}${method}${property} $value
 fi
 

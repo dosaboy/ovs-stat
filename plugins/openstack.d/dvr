@@ -1,6 +1,34 @@
 #!/bin/bash
-openstack.dvr ()  # show dvr-mac related info
+__entry_point__.openstack.dvr ()  # show dvr-mac related info
 {
-    tree $RESULTS_PATH_HOST/ovs/bridges/br-{int,tun}/flowinfo/mod_dl_src
+    # When using Openstack Neutron DVR, packets that flow between compute hosts
+    # will have their src mac address substituted with a "dvr mac" address that
+    # is unique to a specific tenant network and compute host. This is used to
+    # identify which host the packet came from.
+    #
+    # If you provide no args, this will display all ingress and egress mac
+    # conversions for all qrouter namespace router ports. If you provide a
+    # namespace it will show you the conversions for all router ports on that
+    # namespace.
+
+    local namespace=${1:-""}
+    local ports=()
+
+    if [[ -z $namespace ]]; then
+        tree $RESULTS_PATH_HOST/ovs/bridges/br-{int,tun}/flowinfo/mod_dl_src
+        return
+    fi
+
+    for portname in `_list_namespace_ports $namespace| grep qr-`; do
+        port=`_find_port $portname`
+        mac=`cat $port/hwaddr`
+
+        rexpr="$mac"
+        for entry in `find $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/mod_dl_src/egress -name $mac`; do 
+            remote_mac=`basename $(dirname $entry)`
+            rexpr+="|$remote_mac"
+        done
+        tree $RESULTS_PATH_HOST/ovs/bridges/br-{int,tun}/flowinfo/mod_dl_src| egrep "$rexpr|br-tun|br-int"
+    done
 }
 

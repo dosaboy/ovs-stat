@@ -1,18 +1,54 @@
 #!/bin/bash
-openstack.l2pop ()  # show layer2population floor ports for the provided vlan. if no vlan provided all vlans are shown.
+__entry_point__.openstack.l2pop ()
 {
-    vlan=${1:-*}
-    if ! `ls $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$vlan &>/dev/null`; then
-        echo "INFO: no l2pop info found for local-vlan $vlan" 1>&2
-        return
+    # For a given vlan show Neutron layer2 population flood port repote_ips for
+    # the provided vlan. If no vlan provided all vlans are shown.
+    # 
+    # The can be used to determine, for a given network/vlan, which tunnels
+    # will be flooded and what their remote ip is so that it can be matched
+    # against the (neutron) local_ip of specific hosts to determine if they
+    # will receive flooded packets from the local host.
+    #
+    # Note that "vlan" here means local-vlan i.e. the internal vlan
+    # used by neutron to distinguish between tenant networks.
+    # 
+    # vlan arg maybe one of:
+    #    * a local-vlan id
+    #    * no value (this means all vlans)
+    #    * a port name
+    #    * a mac address
+    #    * a neutron network namespace
+
+    local vlans=()
+    local header=false
+    local id_key=${1:-*}
+    local port=
+    local namespace=
+
+    if [[ $id_key = "*" ]]; then
+        header=true
+        readarray -t vlans <<<`ls -1 $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/`
+    elif [[ -e $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$id_key ]]; then
+        vlans=( $id_key )
+    else
+        port=`_find_port $id_key 2>/dev/null`
+        if [[ -e $port/vlan ]]; then
+            vlans=( `readlink $port/vlan| xargs basename` )
+        elif [[ -n `_list_namespace_ports $id_key` ]]; then
+            for portname in `_list_namespace_ports $id_key`; do
+                port=`_find_port $portname`
+                vlans+=( `readlink $port/vlan| xargs basename` )
+            done
+        else
+            echo "INFO: no l2pop info found for local-vlan $id_key" 1>&2
+            return
+        fi
     fi
-    [ "$vlan" = "*" ] || cat $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$vlan/flood_ports/*/remote_ip
-    [ "$vlan" = "*" ] || return
-    path=$RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans
-    for vlan in `find $path -maxdepth 1`; do
-        [ "$path" = "$vlan" ] && continue
-        echo -e "\n== vlan:`basename $vlan` =="
-        cat $vlan/flood_ports/*/remote_ip
+
+    for vlan in ${vlans[@]}; do
+        path=$RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$vlan
+        $header && echo -e "\n== vlan:$vlan =="
+        cat $path/flood_ports/*/remote_ip
     done
 }
 

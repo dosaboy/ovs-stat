@@ -31,6 +31,14 @@ _find_port ()
     fi
 }
 
+_list_namespace_ports ()
+{
+    local ns="$1"
+    [[ -e $RESULTS_PATH_HOST/linux/namespaces/$ns ]] || return
+    ls $RESULTS_PATH_HOST/linux/namespaces/$ns/ports
+}
+
+
 while true; do
     prev=${current%%.*}
     next=${current##*$prev.}

@@ -1,19 +1,14 @@
 #!/bin/bash
-openstack.local-vlans.info ()
+################################################################################
+openstack.local-vlan.list ()
 {
     ((`ls -1 $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/| wc -l`)) || return 0
     ((`find $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/ -name vlan| wc -l`)) || return 0
     find $RESULTS_PATH_HOST/ovs/bridges/br-int/ports/*/ -name vlan| xargs -l readlink| xargs -l basename| sort -un
 }
-# default
-openstack.local-vlans ()
-{
-    # these are the neutron "internal" vlans used to identify tenant overlay networks
-    openstack.local-vlans.info $@
-}
 
-
-openstack.ports.list ()
+################################################################################
+openstack.vlan.port.list ()
 {
     local vlan=${1:-""}
 
@@ -28,17 +23,25 @@ openstack.ports.list ()
         ls $path/ports
     fi
 }
+
+################################################################################
+
 # default
 openstack.ports ()
 {
-    openstack.ports.list $@
+    local id_key=${1:-""}
+    if [[ -n $id_key ]] && [[ -e $RESULTS_PATH_HOST/ovs/vlans/$id_key ]]; then
+        openstack.vlan.port.list $id_key
+        return
+    elif [[ -n $id_key ]] && [[ -e $RESULTS_PATH_HOST/ovs/bridges/$id_key ]]; then
+        openstack.bridge.port.list $id_key
+        return
+    fi
+
+    ls $RESULTS_PATH_HOST/ovs/ports
 }
 
-openstack.port.list ()
-{
-    # alias of
-    openstack.ports $@
-}
+################################################################################
 openstack.port.info ()
 {
     (($#)) || { plugin_usage "name|mac address"; return; }
@@ -88,13 +91,9 @@ openstack.port.flows ()
     tree $port/flows/by-proto
     tree $port/flows/by-table
 }
-# default
-openstack.port ()
-{
-    openstack.port.info $@
-}
 
-openstack.bridge.ports ()
+################################################################################
+openstack.bridge.port.list ()
 {
     local bridge=${1:-}
     local limit=${2:-0}
@@ -104,7 +103,7 @@ openstack.bridge.ports ()
     if [ -z "$bridge" ]; then
         for bridge in `ls $RESULTS_PATH_HOST/ovs/bridges`; do
             echo "$bridge:"
-            openstack.bridge.ports $bridge $((limit+=1))
+            openstack.bridge.port.list $bridge $((limit+=1))
             echo
         done
     else
@@ -118,18 +117,26 @@ openstack.bridge.ports ()
         fi
     fi
 }
-# default
-openstack.bridge ()
-{
-    openstack.bridge.ports $@
-}
 
-openstack.bridges.list ()
+################################################################################
+openstack.bridge.list ()
 {
     ls $RESULTS_PATH_HOST/ovs/bridges
 }
-# default
-openstack.bridges ()
+
+################################################################################
+openstack.namespace.list ()
 {
-    openstack.bridges.list $@
+    ls $RESULTS_PATH_HOST/linux/namespaces
 }
+
+# default entry points
+__entry_point__.openstack.port () { openstack.port.info $@; }
+__entry_point__.openstack.ports () { openstack.ports $@; }
+__entry_point__.openstack.bridge () { openstack.bridge.port.list $@; }
+__entry_point__.openstack.bridges () { openstack.bridge.list $@; }
+__entry_point__.openstack.bridge.ports () { openstack.bridge.port.list $@; }
+__entry_point__.openstack.namespaces () { openstack.namespace.list $@; }
+__entry_point__.openstack.vlan.ports () { openstack.vlan.port.list $@; }
+__entry_point__.openstack.vlans () { openstack.local-vlan.list $@; }
+

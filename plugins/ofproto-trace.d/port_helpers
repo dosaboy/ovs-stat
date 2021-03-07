@@ -71,9 +71,6 @@ ofproto-trace.port.all ()
         echo "sudo ovs-appctl ofproto/trace br-int in_port=${of_id},dl_vlan=${vlan},dl_src=${mac},dl_dst=MAC_OF_REMOTE_INSTANCE"
     fi
 }
-# default
-ofproto-trace.port ()
-{
-    ofproto-trace.port.all $@
-}
 
+# entry points
+__entry_point__.ofproto-trace.port () { ofproto-trace.port.all $@; }
