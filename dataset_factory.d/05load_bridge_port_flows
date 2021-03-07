@@ -123,6 +123,7 @@ __get_bridge_mod_dl_flows ()
 
 __get_bridge_nw_src_flows ()
 {
+    # Extract IP src flows
     local bridge_flows_root=$1
 
     # collect flows corresponding to nw_src addresses
@@ -140,6 +141,7 @@ __get_bridge_nw_src_flows ()
 
 __get_bridge_arp_spa_flows ()
 {
+    # Extract ARP src flows
     local bridge_flows_root=$1
 
     # collect flows corresponding to arp_spa addresses
@@ -150,13 +152,14 @@ __get_bridge_arp_spa_flows ()
     if [ -s "$arp_spa_out.tmp" ]; then
         sed -r 's/.+arp_spa=([[:digit:]\.]+)(\/[[:digit:]]+)?.+/\1/g;t;d' $arp_spa_out.tmp| sort -u > $arp_spa_out
         while read arp_spa_addr; do
-            egrep "arp_spa=${arp_spa_addr}(/[0-9]+)?" $bridge_flows_root/flows > $arp_spa_root/$arp_spa_addr
+            egrep "arp_spa=${arp_spa_addr}(/[0-9]+)?[ ,]+" $bridge_flows_root/flows > $arp_spa_root/$arp_spa_addr
         done < $arp_spa_out
     fi
 }
 
 __get_bridge_dl_dst_flows ()
 {
+    # Extract dst mac flows
     local bridge_flows_root=$1
 
     # collect flows corresponding to dl_dst addresses
@@ -174,6 +177,7 @@ __get_bridge_dl_dst_flows ()
 
 __get_bridge_dl_src_flows ()
 {
+    # Extract src mac flows
     local bridge_flows_root=$1
 
     # collect flows corresponding to dl_src addresses
@@ -197,6 +201,7 @@ __get_port_flows ()
 
     mkdir -p $flows_root
     # note: order of following is important
+    # we don't do this one in parallel since its needed by the others
     __get_port_flows_all $flows_root $bridge $port_id
     __get_port_flows_by_table $flows_root $bridge &
     __get_port_flows_by_proto $flows_root &
