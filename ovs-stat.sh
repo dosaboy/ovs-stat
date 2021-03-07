@@ -168,6 +168,8 @@ while (($#)); do
             # add deprecation notice and continue
             [ "$1" = "--check-flow-vlans" ] && echo "WARNING: $1 option is deprecated, use --openstack instead"
             SCENARIO_OPENSTACK_NEUTRON=true
+            # if this is openstack, show any errors detected.
+            DO_ACTIONS[SHOW_NEUTRON_ERRORS]=true
             ;;
         --delete)
             DO_ACTIONS[DELETE_DATASET]=true
