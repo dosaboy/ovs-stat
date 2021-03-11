@@ -19,11 +19,7 @@ __load_bridge_flows ()
         for c in ${cookies[@]}; do
             grep "cookie=0x$c," $flows_path > $cookies_path/$c
         done
-        sed -r -e 's/cookie=[[:alnum:]]+,\s+//g' \
-               -e 's/duration=[[:digit:]\.]+s,\s+//g' \
-               -e 's/n_[[:alnum:]]+=[[:digit:]]+,\s+//g' \
-               -e 's/[[:alnum:]]+_age=[[:digit:]]+,\s+//g' \
-            $flows_path > ${flows_path}.stripped
+        strip_flows $flows_path > ${flows_path}.stripped
     done    
 }
 

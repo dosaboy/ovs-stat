@@ -1,0 +1,8 @@
+#!/bin/bash
+strip_flows ()
+{
+    sed -r -e 's/cookie=[[:alnum:]]+,\s+//g' \
+           -e 's/duration=[[:digit:]\.]+s,\s+//g' \
+           -e 's/n_[[:alnum:]]+=[[:digit:]]+,\s+//g' \
+           -e 's/[[:alnum:]]+_age=[[:digit:]]+,\s+//g' $1
+}

@@ -74,6 +74,7 @@ __get_port_flows_all ()
     fi
 
     get_ovs_ofctl_dump_flows $bridge| egrep "$expr" > $flows_root/all
+    strip_flows $flows_root/all > $flows_root/all.stripped
 }
 
 __get_bridge_mod_dl_flows ()
