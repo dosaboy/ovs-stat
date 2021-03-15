@@ -525,7 +525,9 @@ EOF
         echo -e "No neutron errors found"
     fi
 
-    DO_ACTIONS[SHOW_SUMMARY]=false
+    if ! $SCENARIO_OPENSTACK_NEUTRON; then
+        DO_ACTIONS[SHOW_SUMMARY]=false
+    fi
 fi
 
 ${DO_ACTIONS[SHOW_SUMMARY]} && show_summary || true
