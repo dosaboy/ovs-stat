@@ -12,6 +12,8 @@ base: core18
 environment:
   TMPDIR: $SNAP_COMMON/tmp
   REPO_INFO_PATH: $SNAP/repo-info
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
 
 apps:
   ovs-stat:
