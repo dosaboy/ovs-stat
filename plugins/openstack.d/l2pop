@@ -25,7 +25,10 @@ __entry_point__.openstack.l2pop ()
     local port=
     local namespace=
 
-    if [[ $id_key = "*" ]]; then
+    if ! [[ -e $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans ]]; then
+        echo "INFO: no l2pop info found on br-tun" 1>&2
+        return
+    elif [[ $id_key = "*" ]]; then
         header=true
         readarray -t vlans <<<`ls -1 $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/`
     elif [[ -e $RESULTS_PATH_HOST/ovs/bridges/br-tun/flowinfo/openstack/l2pop/vlans/$id_key ]]; then
