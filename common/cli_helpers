@@ -332,11 +332,19 @@ get_ovs_vsctl_list ()
     local table=$1
     local arg=${2:-}
     local sos=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_list_${table}
+    local sos2=${OVS_FS_DATA_SOURCE}sos_commands/openvswitch/ovs-vsctl_-t_5_list_${table}
 
-    [ -z "$arg" ] || sos="${sos}_$arg"
+    if [[ -n $arg ]]; then
+        sos="${sos}_$arg"
+        sos2="${sos2}_$arg"
+    fi
 
     if [ -r "${OVS_FS_DATA_SOURCE}sos_commands" ]; then
-        cat $sos
+        if [[ -r $sos ]]; then
+            cat $sos
+        else
+            cat $sos2
+        fi
         return
     fi
 
