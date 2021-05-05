@@ -204,7 +204,10 @@ while (($#)); do
             DO_ACTIONS[QUIET]=true
             DO_ACTIONS[SHOW_SUMMARY]=false
             DO_ACTIONS[RUN_QUERY]=true
-            QUERY_STR="$2"  
+            QUERY_STR=""
+            if (( $# > 1 )) && [[ ! $2 =~ ^-- ]]; then
+              QUERY_STR="$2"
+            fi
             shift
             ;;
         -p|--results-path)
