@@ -39,6 +39,7 @@ export CWD=$(dirname `realpath $0`)
 export SCENARIO_OPENSTACK_NEUTRON=false  # fixme: find a better place for this
 export ATTEMPT_VM_MAC_CONVERSION=false  # fixme: find a better place for this
 CLI_CACHE=( $@ )
+export SKIP_FLOW_COOKIES=false
 
 # can't export assoc
 declare -A DO_ACTIONS=(
@@ -136,6 +137,11 @@ OPTIONS:
         Display occurences that indicate issues when Openvswitch is being used
         with Openstack Neutron.
 
+    --skip-cookies
+        Don't collect information about cookies. If the number of cookies is
+        very large it can take a very long time to parse them so if they are
+        not needed we can now skip them.
+
     --attempt-vm-mac-conversion
 
         When searching for a port using a mac address, if port not found also
@@ -219,6 +225,9 @@ while (($#)); do
             ;;
         --show-neutron-errors)
             DO_ACTIONS[SHOW_NEUTRON_ERRORS]=true
+            ;;
+        --skip-cookies)
+            SKIP_FLOW_COOKIES=true
             ;;
         --tree)
             DO_ACTIONS[SHOW_DATASET]=true

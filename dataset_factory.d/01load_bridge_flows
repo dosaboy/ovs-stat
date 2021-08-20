@@ -13,13 +13,19 @@ __load_bridge_flows ()
         flows_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flows
         get_ovs_ofctl_dump_flows $bridge > $flows_path
 
-        readarray -t cookies <<<"`sed -r 's/.*cookie=0x([[:alnum:]]+),.+/\1/g;t;d' $flows_path| sort -u`"
+        strip_flows $flows_path > ${flows_path}.stripped
+
         cookies_path=$RESULTS_PATH_HOST/ovs/bridges/$bridge/flowinfo/cookies
         mkdir -p $cookies_path
+
+        if ${SKIP_FLOW_COOKIES[@]}; then
+            continue
+        fi
+
+        readarray -t cookies <<<"`sed -r 's/.*cookie=0x([[:alnum:]]+),.+/\1/g;t;d' $flows_path| sort -u`"
         for c in ${cookies[@]}; do
             grep "cookie=0x$c," $flows_path > $cookies_path/$c
         done
-        strip_flows $flows_path > ${flows_path}.stripped
     done    
 }
 
