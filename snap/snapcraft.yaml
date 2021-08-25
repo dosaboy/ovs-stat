@@ -8,7 +8,7 @@ description:
     a more intuitive visualisation of the configuration of an ovs switch.
 confinement: strict 
 grade: stable
-base: core18
+base: core20
 environment:
   TMPDIR: $SNAP_COMMON/tmp
   REPO_INFO_PATH: $SNAP/repo-info
