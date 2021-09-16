@@ -32,7 +32,13 @@ get_bridge_of_version ()
 {
     # get bridge openflow protocol version
     local bridge="$1"
-    local ver="`ovs-vsctl get bridge $bridge protocols| jq -r '.| first'`"
+    local ver="`ovs-vsctl get bridge $bridge protocols| jq -r '.| first' 2>/dev/null`" || true
+    if [[ -z $ver  ]] && ! [[ -d ${OVS_FS_DATA_SOURCE}sos_commands ]]; then
+        # ovs-vsctl may not return valid json so we revert to this if not sosreport
+        ver=`ovsdb-client query "[\"Open_vSwitch\", {\"op\" : \"select\", \"table\" : \"Bridge\", \"where\": \
+                                   [[\"name\" ,\"==\", \"$bridge\" ]], \
+                                     \"columns\": [\"protocols\"]}]"| jq -r '.[].rows[].protocols[1]| first'`
+    fi
     [ -z "$ver" ] || [ "$ver" = "null" ] && return 0
     echo -n $ver
     return 0
